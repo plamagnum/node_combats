@@ -7,7 +7,7 @@ const statsSchema = new mongoose.Schema(
     intuition: { type: Number, default: 5, min: 1 },
     endurance: { type: Number, default: 5, min: 1 },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const equipmentSchema = new mongoose.Schema(
@@ -17,7 +17,7 @@ const equipmentSchema = new mongoose.Schema(
     helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null },
     ring: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const userSchema = new mongoose.Schema(
@@ -57,10 +57,20 @@ const userSchema = new mongoose.Schema(
       type: equipmentSchema,
       default: () => ({ weapon: null, armor: null, helmet: null, ring: null }),
     },
+    rating: { type: Number, default: 1000, min: 0, index: true },
+    isBanned: { type: Boolean, default: false },
+    banReason: { type: String, default: '', maxlength: 200 },
+    registerIp: { type: String, default: '' },
+    registerUserAgent: { type: String, default: '' },
+    lastIp: { type: String, default: '' },
+    lastUserAgent: { type: String, default: '' },
+    lastLoginAt: { type: Date, default: null },
+    lastSeenAt: { type: Date, default: null },
+    loginCount: { type: Number, default: 0, min: 0 },
     maxHp: { type: Number, default: 110, min: 10 },
     hp: { type: Number, default: 110, min: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.methods.getEquipmentBonuses = function getEquipmentBonuses() {
@@ -150,6 +160,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     gold: this.gold,
     wins: this.wins,
     losses: this.losses,
+    rating: this.rating,
     freeStats: this.freeStats,
     stats: this.stats,
     effectiveStats,
@@ -158,6 +169,23 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     hp: this.hp,
     maxHp: this.maxHp,
     createdAt: this.createdAt,
+  };
+};
+
+// Детальні дані для адмін-панелі (IP, user-agent, активність)
+userSchema.methods.toAdminDetails = function toAdminDetails() {
+  return {
+    ...this.toSafeJSON(),
+    isBanned: this.isBanned,
+    banReason: this.banReason,
+    registerIp: this.registerIp,
+    registerUserAgent: this.registerUserAgent,
+    lastIp: this.lastIp,
+    lastUserAgent: this.lastUserAgent,
+    lastLoginAt: this.lastLoginAt,
+    lastSeenAt: this.lastSeenAt,
+    loginCount: this.loginCount,
+    updatedAt: this.updatedAt,
   };
 };
 

@@ -1,11 +1,18 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Item = require('../models/Item');
+const User = require('../models/User');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
+router.param('itemId', (req, res, next, v) =>
+  mongoose.isValidObjectId(v)
+    ? next()
+    : res.status(400).json({ error: 'Некоректний ідентифікатор' }),
+);
 
 async function hasActiveCombat(userId) {
   const [pve, pvp] = await Promise.all([
@@ -24,6 +31,7 @@ router.get('/items', async (req, res) => {
     const items = await Item.find({ isActive: true }).sort({ slot: 1, price: 1 });
     return res.json({ items });
   } catch (err) {
+    console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Не вдалося завантажити товари магазину' });
   }
 });
@@ -37,23 +45,27 @@ router.post('/buy/:itemId', async (req, res) => {
     }
 
     const alreadyOwned = req.user.inventory.some(
-      (inv) => (inv._id || inv).toString() === item._id.toString()
+      (inv) => (inv._id || inv).toString() === item._id.toString(),
     );
     if (alreadyOwned) {
       return res.status(400).json({ error: 'Цей предмет уже є у вашому інвентарі' });
     }
 
-    if (req.user.gold < item.price) {
-      return res.status(400).json({ error: 'Недостатньо золота для покупки' });
+    // Атомарна покупка: списання золота й додавання предмета одним запитом
+    const bought = await User.findOneAndUpdate(
+      { _id: req.user._id, gold: { $gte: item.price }, inventory: { $ne: item._id } },
+      { $inc: { gold: -item.price }, $push: { inventory: item._id } },
+      { new: true },
+    );
+    if (!bought) {
+      return res.status(400).json({ error: 'Недостатньо золота або предмет уже куплено' });
     }
-
-    req.user.gold -= item.price;
-    req.user.inventory.push(item._id);
-    await req.user.save();
+    req.user = bought;
     await req.user.populateGear();
 
     return res.json({ user: req.user.toSafeJSON(), item });
   } catch (err) {
+    console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Помилка покупки предмета' });
   }
 });
@@ -71,7 +83,7 @@ router.post('/equip/:itemId', async (req, res) => {
     }
 
     const owns = req.user.inventory.some(
-      (inv) => (inv._id || inv).toString() === item._id.toString()
+      (inv) => (inv._id || inv).toString() === item._id.toString(),
     );
     if (!owns) {
       return res.status(400).json({ error: 'Спочатку купіть цей предмет у магазині' });
@@ -91,6 +103,7 @@ router.post('/equip/:itemId', async (req, res) => {
 
     return res.json({ user: req.user.toSafeJSON() });
   } catch (err) {
+    console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Не вдалося одягнути предмет' });
   }
 });
@@ -115,6 +128,7 @@ router.post('/unequip/:slot', async (req, res) => {
 
     return res.json({ user: req.user.toSafeJSON() });
   } catch (err) {
+    console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Не вдалося зняти предмет' });
   }
 });
@@ -132,7 +146,7 @@ router.post('/sell/:itemId', async (req, res) => {
     }
 
     const idx = req.user.inventory.findIndex(
-      (inv) => (inv._id || inv).toString() === item._id.toString()
+      (inv) => (inv._id || inv).toString() === item._id.toString(),
     );
     if (idx === -1) {
       return res.status(400).json({ error: 'Предмета немає в інвентарі' });
@@ -153,6 +167,7 @@ router.post('/sell/:itemId', async (req, res) => {
 
     return res.json({ user: req.user.toSafeJSON(), refund });
   } catch (err) {
+    console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Помилка продажу предмета' });
   }
 });

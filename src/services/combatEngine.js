@@ -28,19 +28,22 @@ function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function resolveStrike(attackerName, attackerStats, defenderName, defenderStats, attackZone, defenderBlockZones) {
+function resolveStrike(
+  attackerName,
+  attackerStats,
+  defenderName,
+  defenderStats,
+  attackZone,
+  defenderBlockZones,
+) {
   const zoneLabel = ZONE_LABELS[attackZone] || attackZone;
   const isBlocked = defenderBlockZones.includes(attackZone);
 
-  const dodgeChance = clamp(
-    5 + defenderStats.agility * 1.4 - attackerStats.agility * 0.6,
-    3,
-    45
-  );
+  const dodgeChance = clamp(5 + defenderStats.agility * 1.4 - attackerStats.agility * 0.6, 3, 45);
   const critChance = clamp(
     5 + attackerStats.intuition * 1.5 - defenderStats.intuition * 0.5,
     4,
-    50
+    50,
   );
 
   const weaponMin = attackerStats.damageMin || 0;

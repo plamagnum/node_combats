@@ -4,11 +4,11 @@ services:
     container_name: combats_mongo
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-rootpass}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:?set MONGO_ROOT_PASS in .env}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-combats}
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -25,13 +25,13 @@ services:
       mongo:
         condition: service_healthy
     ports:
-      - "${MONGO_EXPRESS_PORT:-8081}:8081"
+      - "127.0.0.1:${MONGO_EXPRESS_PORT:-8081}:8081"
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USER:-root}
-      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASS:-rootpass}
-      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASS:-rootpass}@mongo:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:-admin}
-      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASS:-admin123}
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASS:?set MONGO_ROOT_PASS in .env}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}:${MONGO_ROOT_PASS:?set MONGO_ROOT_PASS in .env}@mongo:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:?set MONGO_EXPRESS_USER in .env}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASS:?set MONGO_EXPRESS_PASS in .env}
 
   app:
     build: .
@@ -44,10 +44,13 @@ services:
       - "${APP_PORT:-3000}:3000"
     environment:
       PORT: 3000
-      MONGO_URI: mongodb://${MONGO_ROOT_USER:-root}:${MONGO_ROOT_PASS:-rootpass}@mongo:27017/${MONGO_DB:-combats}?authSource=admin
-      JWT_SECRET: ${JWT_SECRET:-super_secret_combats_jwt_key_change_me}
+      NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}:${MONGO_ROOT_PASS:?set MONGO_ROOT_PASS in .env}@mongo:27017/${MONGO_DB:-combats}?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
 
 volumes:
   mongo_data:

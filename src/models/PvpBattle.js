@@ -10,7 +10,7 @@ const logEntrySchema = new mongoose.Schema(
       default: 'system',
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const moveSchema = new mongoose.Schema(
@@ -18,7 +18,7 @@ const moveSchema = new mongoose.Schema(
     attackZone: { type: String, default: null },
     blockPair: { type: String, default: null },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const snapshotStatsSchema = new mongoose.Schema(
@@ -31,7 +31,7 @@ const snapshotStatsSchema = new mongoose.Schema(
     damageMax: { type: Number, default: 0 },
     armor: { type: Number, default: 0 },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const pvpBattleSchema = new mongoose.Schema(
@@ -80,7 +80,7 @@ const pvpBattleSchema = new mongoose.Schema(
     isDraw: { type: Boolean, default: false },
     log: { type: [logEntrySchema], default: [] },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('PvpBattle', pvpBattleSchema);

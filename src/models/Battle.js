@@ -10,7 +10,7 @@ const logEntrySchema = new mongoose.Schema(
       default: 'system',
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const battleSchema = new mongoose.Schema(
@@ -47,7 +47,7 @@ const battleSchema = new mongoose.Schema(
       leveledUp: { type: Boolean, default: false },
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('Battle', battleSchema);
