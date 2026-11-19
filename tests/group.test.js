@@ -67,3 +67,49 @@ describe('dungeons / rating / progress', () => {
     expect(claimQuest(user, 'pve3').error).toBeDefined();
   });
 });
+
+describe('навички', () => {
+  const caster = (extra = {}) => ({
+    ...p('mage', 'A', 100),
+    level: 3,
+    skills: ['fireball', 'heal'],
+    mana: 30,
+    maxMana: 30,
+    cooldowns: [],
+    buffs: [],
+    ...extra,
+  });
+  const enemy = () => ({ ...p('orc', 'B', 100), level: 1, mana: 0, maxMana: 0 });
+
+  test('вогняна куля витрачає ману, ставить перезарядку й завдає шкоди', () => {
+    const parts = [caster(), enemy()];
+    parts[0].move = {
+      attackZone: 'head',
+      blockPair: 'head-chest',
+      targetIdx: 1,
+      skill: 'fireball',
+    };
+    resolveGroupRound(parts, 1);
+    expect(parts[1].hp).toBeLessThan(100);
+    expect(parts[0].mana).toBe(30 - 14 + 5);
+    expect(parts[0].cooldowns[0]).toEqual({ id: 'fireball', left: 2 });
+  });
+
+  test('невивчена навичка та брак мани ігноруються', () => {
+    const { usableSkill } = require('../src/services/groupEngine');
+    expect(usableSkill(caster(), 'lightning')).toBeNull();
+    expect(usableSkill(caster({ mana: 3 }), 'fireball')).toBeNull();
+    expect(
+      usableSkill(caster({ cooldowns: [{ id: 'fireball', left: 1 }] }), 'fireball'),
+    ).toBeNull();
+    expect(usableSkill(caster(), 'fireball')).not.toBeNull();
+  });
+
+  test('зцілення не перевищує maxHp', () => {
+    const parts = [caster({ hp: 50 }), enemy()];
+    parts[0].move = { attackZone: 'head', blockPair: 'head-chest', targetIdx: 0, skill: 'heal' };
+    resolveGroupRound(parts, 1);
+    expect(parts[0].hp).toBeGreaterThan(50);
+    expect(parts[0].hp).toBeLessThanOrEqual(100);
+  });
+});

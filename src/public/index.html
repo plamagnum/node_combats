@@ -67,6 +67,7 @@
             <button id="nav-pvp" class="nav-btn" type="button">PvP Арена</button>
             <button id="nav-shop" class="nav-btn" type="button">Магазин і Спорядження</button>
             <button id="nav-group" class="nav-btn" type="button">Групові бої</button>
+            <button id="nav-skills" class="nav-btn" type="button">Навички</button>
             <button id="nav-clan" class="nav-btn" type="button">Клан</button>
             <button id="nav-quests" class="nav-btn" type="button">Квести</button>
             <button id="nav-ranking" class="nav-btn" type="button">Рейтинг</button>
@@ -445,6 +446,10 @@
           <div id="group-root"></div>
         </section>
 
+        <section id="view-skills" class="hidden">
+          <div id="skills-root"></div>
+        </section>
+
         <section id="view-clan" class="hidden">
           <div id="clan-root"></div>
         </section>
@@ -499,7 +504,33 @@
             <button id="admin-tab-items" class="tab-btn" type="button">
               Магазин / Предмети (CRUD)
             </button>
+            <button id="admin-tab-clans" class="tab-btn" type="button">Клани</button>
             <button id="admin-tab-details" class="tab-btn" type="button">Дані користувачів</button>
+          </div>
+
+          <div id="admin-clans-section" class="panel hidden">
+            <div class="panel-header">
+              <h2>Клани</h2>
+              <button id="btn-refresh-clans" class="btn btn-ghost btn-sm" type="button">
+                Оновити
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Клан</th>
+                    <th>Лідер</th>
+                    <th>Учасники</th>
+                    <th>Рів./XP</th>
+                    <th>Скарбниця</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-clans-tbody"></tbody>
+              </table>
+            </div>
+            <div id="admin-clan-detail" class="hidden"></div>
           </div>
 
           <div id="admin-details-section" class="panel hidden">
@@ -726,5 +757,7 @@
     <script src="/group.js"></script>
     <script src="/clans.js"></script>
     <script src="/quests.js"></script>
+    <script src="/skills.js"></script>
+    <script src="/adminclans.js"></script>
   </body>
 </html>

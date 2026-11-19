@@ -136,10 +136,12 @@ const tabHooks = {};
 
 function switchMainTab(tab) {
   state.currentTab = tab;
-  ['arena', 'pvp', 'shop', 'group', 'clan', 'quests', 'ranking', 'chat', 'admin'].forEach((t) => {
-    $(`nav-${t}`).classList.toggle('active', t === tab);
-    $(`view-${t}`).classList.toggle('hidden', t !== tab);
-  });
+  ['arena', 'pvp', 'shop', 'group', 'skills', 'clan', 'quests', 'ranking', 'chat', 'admin'].forEach(
+    (t) => {
+      $(`nav-${t}`).classList.toggle('active', t === tab);
+      $(`view-${t}`).classList.toggle('hidden', t !== tab);
+    },
+  );
 
   if (tab === 'pvp') {
     loadPvpState();
@@ -170,6 +172,7 @@ $('nav-arena').addEventListener('click', () => switchMainTab('arena'));
 $('nav-pvp').addEventListener('click', () => switchMainTab('pvp'));
 $('nav-shop').addEventListener('click', () => switchMainTab('shop'));
 $('nav-group').addEventListener('click', () => switchMainTab('group'));
+$('nav-skills').addEventListener('click', () => switchMainTab('skills'));
 $('nav-clan').addEventListener('click', () => switchMainTab('clan'));
 $('nav-quests').addEventListener('click', () => switchMainTab('quests'));
 $('nav-ranking').addEventListener('click', () => switchMainTab('ranking'));
@@ -908,7 +911,7 @@ $('btn-pvp-back').addEventListener('click', async () => {
 // ==================== ADMIN PANEL (CRUD + UPGRADES) ====================
 
 function switchAdminSubtab(sub) {
-  ['users', 'bots', 'items', 'details'].forEach((s) => {
+  ['users', 'bots', 'items', 'clans', 'details'].forEach((s) => {
     $(`admin-tab-${s}`).classList.toggle('active', s === sub);
     $(`admin-${s}-section`).classList.toggle('hidden', s !== sub);
   });
@@ -917,6 +920,12 @@ function switchAdminSubtab(sub) {
 $('admin-tab-users').addEventListener('click', () => switchAdminSubtab('users'));
 $('admin-tab-bots').addEventListener('click', () => switchAdminSubtab('bots'));
 $('admin-tab-items').addEventListener('click', () => switchAdminSubtab('items'));
+
+$('admin-tab-clans').addEventListener('click', () => {
+  switchAdminSubtab('clans');
+  loadAdminClans();
+});
+$('btn-refresh-clans').addEventListener('click', loadAdminClans);
 
 $('admin-tab-details').addEventListener('click', () => {
   switchAdminSubtab('details');

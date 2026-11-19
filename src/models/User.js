@@ -73,6 +73,7 @@ const userSchema = new mongoose.Schema(
     avatar: { type: avatarSchema, default: () => ({}) },
     clanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Clan', default: null, index: true },
     clanTag: { type: String, default: '' },
+    skills: { type: [String], default: [] },
     clanRole: { type: String, enum: ['member', 'leader'], default: 'member' },
     achievements: { type: [String], default: [] },
     counters: {
@@ -214,6 +215,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
   const effectiveStats = this.getEffectiveStats();
   return {
     id: this._id,
+    skills: this.skills,
     username: this.username,
     role: this.role,
     level: this.level,
