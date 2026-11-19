@@ -12,11 +12,15 @@ const { connectDB } = require('./config/db');
 const { seedInitialData } = require('./services/seed');
 const { attachChat } = require('./services/chat');
 const { startPvpTimeoutJob } = require('./services/pvpTimeout');
+const { startGroupTimeoutJob } = require('./services/groupTimeout');
 const authRoutes = require('./routes/auth');
 const gameRoutes = require('./routes/game');
 const shopRoutes = require('./routes/shop');
 const pvpRoutes = require('./routes/pvp');
 const adminRoutes = require('./routes/admin');
+const groupRoutes = require('./routes/group');
+const clanRoutes = require('./routes/clans');
+const questRoutes = require('./routes/quests');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -65,6 +69,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/game', gameRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/pvp', pvpRoutes);
+app.use('/api/group', groupRoutes);
+app.use('/api/clans', clanRoutes);
+app.use('/api/quests', questRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Маршрут не знайдено' }));
@@ -91,7 +98,12 @@ async function start() {
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`[SERVER] Combats Arena запущено на http://localhost:${PORT}`);
     });
-    const stopJob = startPvpTimeoutJob();
+    const stopPvpJob = startPvpTimeoutJob();
+    const stopGroupJob = startGroupTimeoutJob();
+    const stopJob = () => {
+      stopPvpJob();
+      stopGroupJob();
+    };
 
     let closing = false;
     const shutdown = (signal) => {

@@ -1,6 +1,7 @@
 const PvpBattle = require('../models/PvpBattle');
 const User = require('../models/User');
 const { applyElo } = require('./rating');
+const { track } = require('./progress');
 
 const MOVE_TIMEOUT_MS = (Number(process.env.PVP_TURN_TIMEOUT_SEC) || 300) * 1000;
 const WAITING_TTL_MS = (Number(process.env.PVP_CHALLENGE_TTL_SEC) || 900) * 1000;
@@ -48,6 +49,7 @@ async function finishByInactivity(battle) {
   if (winner) {
     await winner.populateGear();
     winner.wins += 1;
+    track(winner, 'pvpWin');
     winner.gold += 35;
     winner.addXp(50);
     await winner.save();

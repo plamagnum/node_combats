@@ -6,6 +6,10 @@ const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
 const { requireAuth } = require('../middleware/auth');
 
+const { inGroupBattle } = require('../services/activity');
+
+const { track } = require('../services/progress');
+
 const router = express.Router();
 router.use(requireAuth);
 router.param('itemId', (req, res, next, v) =>
@@ -22,7 +26,7 @@ async function hasActiveCombat(userId) {
       $or: [{ challengerId: userId }, { opponentId: userId }],
     }),
   ]);
-  return Boolean(pve || pvp);
+  return Boolean(pve || pvp || (await inGroupBattle(userId, { activeOnly: true })));
 }
 
 // Список усіх активних товарів у магазині
@@ -61,9 +65,11 @@ router.post('/buy/:itemId', async (req, res) => {
       return res.status(400).json({ error: 'Недостатньо золота або предмет уже куплено' });
     }
     req.user = bought;
+    const unlocked = track(req.user, 'buy');
+    await req.user.save();
     await req.user.populateGear();
 
-    return res.json({ user: req.user.toSafeJSON(), item });
+    return res.json({ user: req.user.toSafeJSON(), item, unlocked });
   } catch (err) {
     console.error('[SHOP]', err);
     return res.status(500).json({ error: 'Помилка покупки предмета' });

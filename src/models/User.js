@@ -71,6 +71,46 @@ const userSchema = new mongoose.Schema(
     },
     gender: { type: String, enum: AVATAR_OPTIONS.gender, default: 'male' },
     avatar: { type: avatarSchema, default: () => ({}) },
+    clanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Clan', default: null, index: true },
+    clanTag: { type: String, default: '' },
+    clanRole: { type: String, enum: ['member', 'leader'], default: 'member' },
+    achievements: { type: [String], default: [] },
+    counters: {
+      type: new mongoose.Schema(
+        {
+          pveWins: { type: Number, default: 0 },
+          pvpWins: { type: Number, default: 0 },
+          groupWins: { type: Number, default: 0 },
+          dungeonClears: { type: Number, default: 0 },
+          bossKills: { type: Number, default: 0 },
+          purchases: { type: Number, default: 0 },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
+    quests: {
+      type: new mongoose.Schema(
+        {
+          date: { type: String, default: '' },
+          list: {
+            type: [
+              new mongoose.Schema(
+                {
+                  id: String,
+                  progress: { type: Number, default: 0 },
+                  claimed: { type: Boolean, default: false },
+                },
+                { _id: false },
+              ),
+            ],
+            default: [],
+          },
+        },
+        { _id: false },
+      ),
+      default: () => ({ date: '', list: [] }),
+    },
     rating: { type: Number, default: 1000, min: 0, index: true },
     isBanned: { type: Boolean, default: false },
     banReason: { type: String, default: '', maxlength: 200 },
@@ -183,6 +223,9 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     wins: this.wins,
     losses: this.losses,
     rating: this.rating,
+    clanId: this.clanId,
+    clanTag: this.clanTag,
+    clanRole: this.clanRole,
     gender: this.gender,
     avatar: {
       ...DEFAULT_AVATAR,

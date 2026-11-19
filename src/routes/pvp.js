@@ -7,6 +7,9 @@ const { applyElo } = require('../services/rating');
 const { requireAuth } = require('../middleware/auth');
 const { ZONES, BLOCK_PAIRS, resolveStrike } = require('../services/combatEngine');
 
+const { inGroupBattle } = require('../services/activity');
+const { track } = require('../services/progress');
+
 const router = express.Router();
 router.use(requireAuth);
 router.param('id', (req, res, next, id) =>
@@ -93,8 +96,8 @@ router.post('/challenges', async (req, res) => {
       }),
     ]);
 
-    if (activePve) {
-      return res.status(400).json({ error: 'Спочатку завершіть поточний бій проти бота' });
+    if (activePve || (await inGroupBattle(uid))) {
+      return res.status(400).json({ error: 'Спочатку завершіть поточний бій' });
     }
     if (activePvp) {
       return res.status(400).json({ error: 'У вас уже є активна заявка або PvP-бій' });
@@ -160,7 +163,7 @@ router.post('/challenges/:id/accept', async (req, res) => {
       }),
     ]);
 
-    if (activePve || activePvp) {
+    if (activePve || activePvp || (await inGroupBattle(uid))) {
       return res.status(400).json({ error: 'У вас уже є активний бій або відкрита заявка' });
     }
     if (req.user.hp <= 0) {
@@ -322,6 +325,7 @@ router.post('/battles/:id/turn', async (req, res) => {
         let leveledUp = false;
         if (winner) {
           winner.wins += 1;
+          track(winner, 'pvpWin');
           winner.gold += goldGain;
           leveledUp = winner.addXp(xpGain);
         }
@@ -392,6 +396,7 @@ router.post('/battles/:id/flee', async (req, res) => {
     if (winner) {
       await winner.populateGear();
       winner.wins += 1;
+      track(winner, 'pvpWin');
       winner.gold += 35;
       winner.addXp(50);
       await winner.save();

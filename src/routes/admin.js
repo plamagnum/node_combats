@@ -11,6 +11,9 @@ const { avatarUpdateSchema } = require('../services/avatar');
 const { validate } = require('../utils/validate');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
+const GroupBattle = require('../models/GroupBattle');
+const Clan = require('../models/Clan');
+
 const router = express.Router();
 router.use(requireAuth, requireAdmin);
 router.param('id', (req, res, next, v) =>
@@ -247,7 +250,23 @@ router.delete('/users/:id', async (req, res) => {
     await Promise.all([
       Battle.deleteMany({ playerId: deleted._id }),
       PvpBattle.deleteMany({ $or: [{ challengerId: deleted._id }, { opponentId: deleted._id }] }),
+      GroupBattle.deleteMany({
+        status: { $in: ['lobby', 'active'] },
+        participants: { $elemMatch: { userId: deleted._id } },
+      }),
     ]);
+    if (deleted.clanId) {
+      const clan = await Clan.findById(deleted.clanId);
+      if (clan && String(clan.leaderId) === String(deleted._id)) {
+        await User.updateMany(
+          { clanId: clan._id },
+          { $set: { clanId: null, clanTag: '', clanRole: 'member' } },
+        );
+        await Clan.deleteOne({ _id: clan._id });
+      } else if (clan) {
+        await Clan.updateOne({ _id: clan._id }, { $inc: { memberCount: -1 } });
+      }
+    }
     return res.json({ ok: true, deletedId: req.params.id });
   } catch (err) {
     console.error('[ADMIN]', err);

@@ -66,6 +66,9 @@
             <button id="nav-arena" class="nav-btn active" type="button">Арена (Боти)</button>
             <button id="nav-pvp" class="nav-btn" type="button">PvP Арена</button>
             <button id="nav-shop" class="nav-btn" type="button">Магазин і Спорядження</button>
+            <button id="nav-group" class="nav-btn" type="button">Групові бої</button>
+            <button id="nav-clan" class="nav-btn" type="button">Клан</button>
+            <button id="nav-quests" class="nav-btn" type="button">Квести</button>
             <button id="nav-ranking" class="nav-btn" type="button">Рейтинг</button>
             <button id="nav-chat" class="nav-btn" type="button">Чат</button>
             <button id="nav-admin" class="nav-btn hidden" type="button">Адмін-панель</button>
@@ -438,6 +441,18 @@
         </section>
 
         <!-- Вкладка: Адмін-панель -->
+        <section id="view-group" class="hidden">
+          <div id="group-root"></div>
+        </section>
+
+        <section id="view-clan" class="hidden">
+          <div id="clan-root"></div>
+        </section>
+
+        <section id="view-quests" class="hidden">
+          <div id="quests-root"></div>
+        </section>
+
         <section id="view-ranking" class="hidden">
           <div class="panel">
             <div class="panel-header">
@@ -708,5 +723,8 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/app.js"></script>
     <script src="/avatar.js"></script>
+    <script src="/group.js"></script>
+    <script src="/clans.js"></script>
+    <script src="/quests.js"></script>
   </body>
 </html>

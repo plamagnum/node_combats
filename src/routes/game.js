@@ -9,6 +9,9 @@ const { validate } = require('../utils/validate');
 const { requireAuth } = require('../middleware/auth');
 const { ZONES, BLOCK_PAIRS, resolveStrike, chooseBotTurn } = require('../services/combatEngine');
 
+const { inGroupBattle } = require('../services/activity');
+const { track } = require('../services/progress');
+
 const router = express.Router();
 router.use(requireAuth);
 router.param('id', (req, res, next, v) =>
@@ -65,7 +68,7 @@ router.post('/heal', async (req, res) => {
         $or: [{ challengerId: req.user._id }, { opponentId: req.user._id }],
       }),
     ]);
-    if (activePve || activePvp) {
+    if (activePve || activePvp || (await inGroupBattle(req.user._id, { activeOnly: true }))) {
       return res.status(400).json({ error: 'Не можна лікуватися під час активного бою' });
     }
     req.user.recalcVitals(true);
@@ -114,8 +117,10 @@ router.post('/battles/start', async (req, res) => {
     if (existingPve) {
       return res.status(400).json({ error: 'У вас уже є активний бій', activeBattle: existingPve });
     }
-    if (existingPvp) {
-      return res.status(400).json({ error: 'У вас є активний PvP-бій або відкрита заявка' });
+    if (existingPvp || (await inGroupBattle(req.user._id))) {
+      return res
+        .status(400)
+        .json({ error: 'У вас є активний PvP-бій, груповий бій або відкрита заявка' });
     }
 
     const bot = await Bot.findOne({ _id: botId, isActive: true });
@@ -221,11 +226,19 @@ router.post('/battles/:id/turn', async (req, res) => {
     } else if (battle.botHp <= 0) {
       battle.status = 'won';
       req.user.wins += 1;
+      const unlocked = track(req.user, 'pveWin');
       const xpGain = bot ? bot.rewardXp : 30;
       const goldGain = bot ? bot.rewardGold : 20;
       req.user.gold += goldGain;
       const leveledUp = req.user.addXp(xpGain);
       battle.reward = { xp: xpGain, gold: goldGain, leveledUp };
+      if (unlocked.length) {
+        battle.log.push({
+          round: battle.round,
+          type: 'system',
+          text: `Досягнення: ${unlocked.join(', ')}`,
+        });
+      }
       battle.log.push({
         round: battle.round,
         type: 'system',
@@ -304,7 +317,7 @@ router.get('/leaderboard', async (req, res) => {
     const top = await User.find(filter)
       .sort({ rating: -1, wins: -1, createdAt: 1 })
       .limit(50)
-      .select('username level rating wins losses')
+      .select('username level rating wins losses clanTag')
       .lean();
     const me = req.user;
     const myRank =
@@ -316,6 +329,7 @@ router.get('/leaderboard', async (req, res) => {
         rank: i + 1,
         id: u._id,
         username: u.username,
+        clanTag: u.clanTag,
         level: u.level,
         rating: u.rating,
         wins: u.wins,

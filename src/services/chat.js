@@ -13,6 +13,7 @@ function serialize(m) {
     id: m._id,
     userId: m.userId,
     username: m.username,
+    clanTag: m.clanTag || '',
     role: m.role,
     level: m.level,
     text: m.text,
@@ -79,6 +80,7 @@ function attachChat(httpServer, allowedOrigins = []) {
         const msg = await ChatMessage.create({
           userId: fresh._id,
           username: fresh.username,
+          clanTag: fresh.clanTag,
           role: fresh.role,
           level: fresh.level,
           text,

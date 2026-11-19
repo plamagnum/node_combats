@@ -52,6 +52,9 @@ async function api(path, options = {}) {
   if (!res.ok) {
     throw new Error(data.error || 'Помилка запиту');
   }
+  if (Array.isArray(data.unlocked) && data.unlocked.length) {
+    showToast(`🏆 Досягнення: ${data.unlocked.join(', ')}`);
+  }
   return data;
 }
 
@@ -128,9 +131,12 @@ $('btn-logout').addEventListener('click', () => {
 
 // ==================== NAVIGATION ====================
 
+// Вкладки з окремих скриптів реєструють тут enter/leave
+const tabHooks = {};
+
 function switchMainTab(tab) {
   state.currentTab = tab;
-  ['arena', 'pvp', 'shop', 'ranking', 'chat', 'admin'].forEach((t) => {
+  ['arena', 'pvp', 'shop', 'group', 'clan', 'quests', 'ranking', 'chat', 'admin'].forEach((t) => {
     $(`nav-${t}`).classList.toggle('active', t === tab);
     $(`view-${t}`).classList.toggle('hidden', t !== tab);
   });
@@ -141,6 +147,8 @@ function switchMainTab(tab) {
   } else {
     stopPvpPolling();
   }
+
+  Object.entries(tabHooks).forEach(([t, h]) => (t === tab ? h.enter() : h.leave && h.leave()));
 
   if (tab === 'shop') {
     loadShop();
@@ -161,6 +169,9 @@ function switchMainTab(tab) {
 $('nav-arena').addEventListener('click', () => switchMainTab('arena'));
 $('nav-pvp').addEventListener('click', () => switchMainTab('pvp'));
 $('nav-shop').addEventListener('click', () => switchMainTab('shop'));
+$('nav-group').addEventListener('click', () => switchMainTab('group'));
+$('nav-clan').addEventListener('click', () => switchMainTab('clan'));
+$('nav-quests').addEventListener('click', () => switchMainTab('quests'));
 $('nav-ranking').addEventListener('click', () => switchMainTab('ranking'));
 $('nav-chat').addEventListener('click', () => switchMainTab('chat'));
 $('nav-admin').addEventListener('click', () => switchMainTab('admin'));
@@ -187,7 +198,7 @@ async function loadRanking() {
       .map(
         (r) => `<tr class="${state.user && r.id === state.user.id ? 'me-row' : ''}">
           <td>${r.rank}</td>
-          <td><strong>${escapeHtml(r.username)}</strong></td>
+          <td><strong>${r.clanTag ? `[${escapeHtml(r.clanTag)}] ` : ''}${escapeHtml(r.username)}</strong></td>
           <td>${r.level}</td>
           <td><strong>${r.rating}</strong></td>
           <td>${r.wins} / ${r.losses}</td>
@@ -216,7 +227,7 @@ function appendChatMessage(m) {
     hour: '2-digit',
     minute: '2-digit',
   });
-  el.innerHTML = `<span class="muted">${time}</span> <strong class="${m.role === 'admin' ? 'chat-admin' : ''}">${escapeHtml(
+  el.innerHTML = `<span class="muted">${time}</span> <strong class="${m.role === 'admin' ? 'chat-admin' : ''}">${m.clanTag ? `[${escapeHtml(m.clanTag)}] ` : ''}${escapeHtml(
     m.username,
   )}</strong> <span class="muted">[${m.level}]</span>: <span class="chat-text"></span>`;
   el.querySelector('.chat-text').textContent = m.text;

@@ -830,3 +830,68 @@ code {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+
+/* Групові бої, клани, квести */
+.group-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.group-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.group-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.group-card.me {
+  border-color: var(--gold, #d4a017);
+}
+
+.group-card.dead {
+  opacity: 0.5;
+}
+
+.group-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.npc-emoji {
+  font-size: 40px;
+  width: 64px;
+  text-align: center;
+}
+
+.group-controls label {
+  display: inline-block;
+  margin: 4px 10px 4px 0;
+}
+
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.group-log {
+  max-height: 220px;
+  overflow-y: auto;
+}
