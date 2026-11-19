@@ -4,6 +4,8 @@ const Bot = require('../models/Bot');
 const User = require('../models/User');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
+const { AVATAR_OPTIONS, avatarUpdateSchema } = require('../services/avatar');
+const { validate } = require('../utils/validate');
 const { requireAuth } = require('../middleware/auth');
 const { ZONES, BLOCK_PAIRS, resolveStrike, chooseBotTurn } = require('../services/combatEngine');
 
@@ -277,6 +279,21 @@ router.post('/battles/:id/flee', async (req, res) => {
   } catch (err) {
     console.error('[GAME]', err);
     return res.status(500).json({ error: 'Не вдалося завершити бій' });
+  }
+});
+
+// Доступні варіанти аватара
+router.get('/avatar-options', (req, res) => res.json({ options: AVATAR_OPTIONS }));
+
+// Змінити власну стать/аватар (частково: лише передані поля)
+router.put('/avatar', validate(avatarUpdateSchema), async (req, res) => {
+  try {
+    req.user.applyAvatar(req.body);
+    await req.user.save();
+    return res.json({ user: req.user.toSafeJSON() });
+  } catch (err) {
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: 'Не вдалося зберегти аватар' });
   }
 });
 

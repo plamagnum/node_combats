@@ -165,6 +165,16 @@ $('nav-ranking').addEventListener('click', () => switchMainTab('ranking'));
 $('nav-chat').addEventListener('click', () => switchMainTab('chat'));
 $('nav-admin').addEventListener('click', () => switchMainTab('admin'));
 
+$('btn-edit-avatar').addEventListener('click', () => {
+  openAvatarEditor(state.user, {
+    saveUrl: '/api/game/avatar',
+    onSaved: (u) => {
+      state.user = u;
+      renderCharacter();
+    },
+  });
+});
+
 // ==================== RANKING ====================
 
 async function loadRanking() {
@@ -269,6 +279,7 @@ function renderCharacter() {
 
   const eff = u.effectiveStats || { ...u.stats, damageMin: 0, damageMax: 0, armor: 0 };
 
+  $('char-avatar').innerHTML = avatarSvg(u, 130);
   $('header-user').textContent =
     `${u.username} • Рів. ${u.level} • ${u.gold} зол. • рейтинг ${u.rating ?? 1000} (${u.role})`;
   $('nav-admin').classList.toggle('hidden', u.role !== 'admin');
@@ -1035,6 +1046,7 @@ function renderAdminUsers() {
       <td>
         <div class="action-group">
           <button class="btn btn-ghost btn-xs" data-edit-user="${u.id}">Ред.</button>
+          <button class="btn btn-ghost btn-xs" data-avatar-user="${u.id}">Вигляд</button>
           <button class="btn btn-danger btn-xs" data-del-user="${u.id}">Видал.</button>
         </div>
       </td>
@@ -1061,6 +1073,23 @@ function renderAdminUsers() {
       } catch (err) {
         showToast(err.message, true);
       }
+    });
+  });
+
+  tbody.querySelectorAll('[data-avatar-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = state.adminUsers.find((x) => x.id === btn.dataset.avatarUser);
+      if (!target) return;
+      openAvatarEditor(target, {
+        saveUrl: `/api/admin/users/${target.id}/avatar`,
+        onSaved: (u) => {
+          if (state.user && state.user.id === u.id) {
+            state.user = u;
+            renderCharacter();
+          }
+          loadAdminData();
+        },
+      });
     });
   });
 

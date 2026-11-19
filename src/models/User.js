@@ -20,6 +20,18 @@ const equipmentSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const { AVATAR_OPTIONS, DEFAULT_AVATAR } = require('../services/avatar');
+
+const avatarSchema = new mongoose.Schema(
+  Object.fromEntries(
+    Object.keys(DEFAULT_AVATAR).map((k) => [
+      k,
+      { type: String, enum: AVATAR_OPTIONS[k], default: DEFAULT_AVATAR[k] },
+    ]),
+  ),
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -57,6 +69,8 @@ const userSchema = new mongoose.Schema(
       type: equipmentSchema,
       default: () => ({ weapon: null, armor: null, helmet: null, ring: null }),
     },
+    gender: { type: String, enum: AVATAR_OPTIONS.gender, default: 'male' },
+    avatar: { type: avatarSchema, default: () => ({}) },
     rating: { type: Number, default: 1000, min: 0, index: true },
     isBanned: { type: Boolean, default: false },
     banReason: { type: String, default: '', maxlength: 200 },
@@ -137,6 +151,14 @@ userSchema.methods.addXp = function addXp(amount) {
   return leveledUp;
 };
 
+userSchema.methods.applyAvatar = function applyAvatar(changes) {
+  const { gender, ...parts } = changes;
+  if (gender) this.gender = gender;
+  Object.entries(parts).forEach(([k, v]) => {
+    this.avatar[k] = v;
+  });
+};
+
 userSchema.methods.populateGear = async function populateGear() {
   await this.populate([
     { path: 'inventory' },
@@ -161,6 +183,11 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     wins: this.wins,
     losses: this.losses,
     rating: this.rating,
+    gender: this.gender,
+    avatar: {
+      ...DEFAULT_AVATAR,
+      ...(this.avatar?.toObject ? this.avatar.toObject() : this.avatar),
+    },
     freeStats: this.freeStats,
     stats: this.stats,
     effectiveStats,

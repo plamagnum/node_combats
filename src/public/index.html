@@ -93,6 +93,13 @@
               <span id="char-level" class="badge">Рівень 1</span>
             </div>
 
+            <div class="avatar-box">
+              <div id="char-avatar"></div>
+              <button id="btn-edit-avatar" class="btn btn-ghost btn-sm" type="button">
+                Змінити вигляд
+              </button>
+            </div>
+
             <div class="bar-group">
               <div class="bar-label">
                 <span>Здоров'я (HP)</span>
@@ -646,6 +653,23 @@
       </main>
     </div>
 
+    <!-- Модальне вікно редагування вигляду -->
+    <div id="avatar-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="panel-header">
+          <h3 id="avatar-modal-title">Вигляд</h3>
+          <button id="btn-close-avatar" class="btn btn-ghost btn-sm" type="button">✕</button>
+        </div>
+        <div class="avatar-editor">
+          <div id="avatar-preview" class="avatar-preview"></div>
+          <div id="avatar-fields" class="modal-form"></div>
+        </div>
+        <button id="btn-save-avatar" class="btn btn-success full-width" type="button">
+          Зберегти
+        </button>
+      </div>
+    </div>
+
     <!-- Модальне вікно редагування персонажа -->
     <div id="edit-modal" class="modal hidden">
       <div class="modal-card">
@@ -683,5 +707,6 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/app.js"></script>
+    <script src="/avatar.js"></script>
   </body>
 </html>

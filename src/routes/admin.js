@@ -7,6 +7,8 @@ const Item = require('../models/Item');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
 const LoginEvent = require('../models/LoginEvent');
+const { avatarUpdateSchema } = require('../services/avatar');
+const { validate } = require('../utils/validate');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
@@ -61,6 +63,21 @@ router.get('/users/:id/details', async (req, res) => {
   } catch (err) {
     console.error('[ADMIN]', err);
     res.status(500).json({ error: 'Не вдалося завантажити деталі користувача' });
+  }
+});
+
+// Адмін змінює стать/аватар будь-якого гравця
+router.put('/users/:id/avatar', validate(avatarUpdateSchema), async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: 'Персонажа не знайдено' });
+    user.applyAvatar(req.body);
+    await user.save();
+    await user.populateGear();
+    return res.json({ user: user.toSafeJSON() });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося зберегти аватар' });
   }
 });
 
