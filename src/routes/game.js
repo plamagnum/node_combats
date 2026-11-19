@@ -1,17 +1,24 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Bot = require('../models/Bot');
+const User = require('../models/User');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
+const { AVATAR_OPTIONS, avatarUpdateSchema } = require('../services/avatar');
+const { validate } = require('../utils/validate');
 const { requireAuth } = require('../middleware/auth');
-const {
-  ZONES,
-  BLOCK_PAIRS,
-  resolveStrike,
-  chooseBotTurn,
-} = require('../services/combatEngine');
+const { ZONES, BLOCK_PAIRS, resolveStrike, chooseBotTurn } = require('../services/combatEngine');
+
+const { inGroupBattle } = require('../services/activity');
+const { track } = require('../services/progress');
 
 const router = express.Router();
 router.use(requireAuth);
+router.param('id', (req, res, next, v) =>
+  mongoose.isValidObjectId(v)
+    ? next()
+    : res.status(400).json({ error: 'Некоректний ідентифікатор' }),
+);
 
 // Список доступних ботів для боїв
 router.get('/bots', async (req, res) => {
@@ -19,6 +26,7 @@ router.get('/bots', async (req, res) => {
     const bots = await Bot.find({ isActive: true }).sort({ level: 1, name: 1 });
     res.json({ bots });
   } catch (err) {
+    console.error('[GAME]', err);
     res.status(500).json({ error: 'Не вдалося завантажити ботів' });
   }
 });
@@ -45,6 +53,7 @@ router.post('/stats/allocate', async (req, res) => {
 
     return res.json({ user: req.user.toSafeJSON() });
   } catch (err) {
+    console.error('[GAME]', err);
     return res.status(500).json({ error: 'Помилка оновлення характеристик' });
   }
 });
@@ -59,14 +68,15 @@ router.post('/heal', async (req, res) => {
         $or: [{ challengerId: req.user._id }, { opponentId: req.user._id }],
       }),
     ]);
-    if (activePve || activePvp) {
+    if (activePve || activePvp || (await inGroupBattle(req.user._id, { activeOnly: true }))) {
       return res.status(400).json({ error: 'Не можна лікуватися під час активного бою' });
     }
     req.user.recalcVitals(true);
     await req.user.save();
     return res.json({ user: req.user.toSafeJSON() });
   } catch (err) {
-    return res.status(500).json({ error: 'Помилка відновлення здоров\'я' });
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: "Помилка відновлення здоров'я" });
   }
 });
 
@@ -88,6 +98,7 @@ router.get('/battles/state', async (req, res) => {
 
     return res.json({ activeBattle, history });
   } catch (err) {
+    console.error('[GAME]', err);
     return res.status(500).json({ error: 'Не вдалося отримати стан боїв' });
   }
 });
@@ -106,8 +117,10 @@ router.post('/battles/start', async (req, res) => {
     if (existingPve) {
       return res.status(400).json({ error: 'У вас уже є активний бій', activeBattle: existingPve });
     }
-    if (existingPvp) {
-      return res.status(400).json({ error: 'У вас є активний PvP-бій або відкрита заявка' });
+    if (existingPvp || (await inGroupBattle(req.user._id))) {
+      return res
+        .status(400)
+        .json({ error: 'У вас є активний PvP-бій, груповий бій або відкрита заявка' });
     }
 
     const bot = await Bot.findOne({ _id: botId, isActive: true });
@@ -116,7 +129,7 @@ router.post('/battles/start', async (req, res) => {
     }
 
     if (req.user.hp <= 0) {
-      return res.status(400).json({ error: 'Здоров\'я на нулі. Спочатку відновіть HP.' });
+      return res.status(400).json({ error: "Здоров'я на нулі. Спочатку відновіть HP." });
     }
 
     const battle = await Battle.create({
@@ -142,7 +155,8 @@ router.post('/battles/start', async (req, res) => {
 
     return res.status(201).json({ battle, user: req.user.toSafeJSON() });
   } catch (err) {
-    return res.status(500).json({ error: 'Не вдалося розпочати бій', details: err.message });
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: 'Не вдалося розпочати бій' });
   }
 });
 
@@ -168,9 +182,7 @@ router.post('/battles/:id/turn', async (req, res) => {
     }
 
     const bot = await Bot.findById(battle.botId);
-    const botStats = bot
-      ? bot.stats
-      : { strength: 5, agility: 5, intuition: 5, endurance: 5 };
+    const botStats = bot ? bot.stats : { strength: 5, agility: 5, intuition: 5, endurance: 5 };
 
     const playerEffective = req.user.getEffectiveStats();
     const botTurn = chooseBotTurn();
@@ -182,7 +194,7 @@ router.post('/battles/:id/turn', async (req, res) => {
       battle.botName,
       botStats,
       attackZone,
-      botTurn.blockZones
+      botTurn.blockZones,
     );
 
     const botStrike = resolveStrike(
@@ -191,7 +203,7 @@ router.post('/battles/:id/turn', async (req, res) => {
       req.user.username,
       playerEffective,
       botTurn.attackZone,
-      playerBlockZones
+      playerBlockZones,
     );
 
     battle.botHp = Math.max(0, battle.botHp - playerStrike.damage);
@@ -199,7 +211,7 @@ router.post('/battles/:id/turn', async (req, res) => {
 
     battle.log.push(
       { round: battle.round, type: playerStrike.type, text: playerStrike.text },
-      { round: battle.round, type: botStrike.type, text: botStrike.text }
+      { round: battle.round, type: botStrike.type, text: botStrike.text },
     );
 
     req.user.hp = battle.playerHp;
@@ -214,11 +226,19 @@ router.post('/battles/:id/turn', async (req, res) => {
     } else if (battle.botHp <= 0) {
       battle.status = 'won';
       req.user.wins += 1;
+      const unlocked = track(req.user, 'pveWin');
       const xpGain = bot ? bot.rewardXp : 30;
       const goldGain = bot ? bot.rewardGold : 20;
       req.user.gold += goldGain;
       const leveledUp = req.user.addXp(xpGain);
       battle.reward = { xp: xpGain, gold: goldGain, leveledUp };
+      if (unlocked.length) {
+        battle.log.push({
+          round: battle.round,
+          type: 'system',
+          text: `Досягнення: ${unlocked.join(', ')}`,
+        });
+      }
       battle.log.push({
         round: battle.round,
         type: 'system',
@@ -241,7 +261,8 @@ router.post('/battles/:id/turn', async (req, res) => {
 
     return res.json({ battle, user: req.user.toSafeJSON() });
   } catch (err) {
-    return res.status(500).json({ error: 'Помилка виконання ходу', details: err.message });
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: 'Помилка виконання ходу' });
   }
 });
 
@@ -269,7 +290,56 @@ router.post('/battles/:id/flee', async (req, res) => {
 
     return res.json({ battle, user: req.user.toSafeJSON() });
   } catch (err) {
+    console.error('[GAME]', err);
     return res.status(500).json({ error: 'Не вдалося завершити бій' });
+  }
+});
+
+// Доступні варіанти аватара
+router.get('/avatar-options', (req, res) => res.json({ options: AVATAR_OPTIONS }));
+
+// Змінити власну стать/аватар (частково: лише передані поля)
+router.put('/avatar', validate(avatarUpdateSchema), async (req, res) => {
+  try {
+    req.user.applyAvatar(req.body);
+    await req.user.save();
+    return res.json({ user: req.user.toSafeJSON() });
+  } catch (err) {
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: 'Не вдалося зберегти аватар' });
+  }
+});
+
+// Таблиця лідерів: Elo-рейтинг гравців (адміністратори не враховуються)
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const filter = { role: 'player' };
+    const top = await User.find(filter)
+      .sort({ rating: -1, wins: -1, createdAt: 1 })
+      .limit(50)
+      .select('username level rating wins losses clanTag')
+      .lean();
+    const me = req.user;
+    const myRank =
+      me.role === 'player'
+        ? (await User.countDocuments({ ...filter, rating: { $gt: me.rating } })) + 1
+        : null;
+    return res.json({
+      leaderboard: top.map((u, i) => ({
+        rank: i + 1,
+        id: u._id,
+        username: u.username,
+        clanTag: u.clanTag,
+        level: u.level,
+        rating: u.rating,
+        wins: u.wins,
+        losses: u.losses,
+      })),
+      me: { rank: myRank, rating: me.rating },
+    });
+  } catch (err) {
+    console.error('[GAME]', err);
+    return res.status(500).json({ error: 'Не вдалося завантажити рейтинг' });
   }
 });
 

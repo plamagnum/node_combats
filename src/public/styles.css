@@ -18,7 +18,11 @@
 
 body {
   margin: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
   background: radial-gradient(circle at top, #1d212d 0%, var(--bg) 65%);
   color: var(--text);
   min-height: 100vh;
@@ -383,6 +387,90 @@ code {
   background: linear-gradient(90deg, #8b5cf6, #c084fc);
 }
 
+.progress-fill[data-hp='high'] {
+  background: linear-gradient(90deg, #1f9d55, #4ade80);
+}
+
+.progress-fill[data-hp='mid'] {
+  background: linear-gradient(90deg, #ca8a04, #facc15);
+}
+
+.progress-fill[data-hp='low'] {
+  background: linear-gradient(90deg, #a82525, #ef4444);
+}
+
+.chat-messages {
+  height: 420px;
+  overflow-y: auto;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.chat-msg {
+  padding: 3px 0;
+  word-break: break-word;
+}
+
+.chat-admin {
+  color: #facc15;
+}
+
+.chat-form {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-form input {
+  flex: 1;
+}
+
+.me-row td {
+  background: rgba(250, 204, 21, 0.08);
+}
+
+.avatar-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.avatar-editor {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.avatar-preview {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.ua-cell {
+  max-width: 260px;
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.badge-danger {
+  background: #a82525;
+  color: #fff;
+}
+
 .xp-fill {
   background: linear-gradient(90deg, #1f7a4c, #34d399);
 }
@@ -522,9 +610,18 @@ code {
   font-size: 13px;
 }
 
-.status-won { color: #34d399; font-weight: 700; }
-.status-lost { color: #f87171; font-weight: 700; }
-.status-draw { color: var(--gold); font-weight: 700; }
+.status-won {
+  color: #34d399;
+  font-weight: 700;
+}
+.status-lost {
+  color: #f87171;
+  font-weight: 700;
+}
+.status-draw {
+  color: var(--gold);
+  font-weight: 700;
+}
 
 .versus-grid {
   display: grid;
@@ -644,11 +741,23 @@ code {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.log-crit { color: #fbbf24; font-weight: 700; }
-.log-hit { color: #f87171; }
-.log-block { color: #60a5fa; }
-.log-dodge { color: #34d399; }
-.log-system { color: var(--muted); font-style: italic; }
+.log-crit {
+  color: #fbbf24;
+  font-weight: 700;
+}
+.log-hit {
+  color: #f87171;
+}
+.log-block {
+  color: #60a5fa;
+}
+.log-dodge {
+  color: #34d399;
+}
+.log-system {
+  color: var(--muted);
+  font-style: italic;
+}
 
 .inline-form {
   display: grid;
@@ -720,4 +829,69 @@ code {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+/* Групові бої, клани, квести */
+.group-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.group-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.group-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border, #333);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.group-card.me {
+  border-color: var(--gold, #d4a017);
+}
+
+.group-card.dead {
+  opacity: 0.5;
+}
+
+.group-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.npc-emoji {
+  font-size: 40px;
+  width: 64px;
+  text-align: center;
+}
+
+.group-controls label {
+  display: inline-block;
+  margin: 4px 10px 4px 0;
+}
+
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0;
+}
+
+.group-log {
+  max-height: 220px;
+  overflow-y: auto;
 }

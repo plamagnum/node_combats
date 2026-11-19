@@ -16,7 +16,7 @@ const botSchema = new mongoose.Schema(
     maxHp: { type: Number, default: 100, min: 20 },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 botSchema.pre('save', function recalcBotHp(next) {

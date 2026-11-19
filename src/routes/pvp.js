@@ -1,12 +1,22 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
+const { applyElo } = require('../services/rating');
 const { requireAuth } = require('../middleware/auth');
 const { ZONES, BLOCK_PAIRS, resolveStrike } = require('../services/combatEngine');
 
+const { inGroupBattle } = require('../services/activity');
+const { track } = require('../services/progress');
+
 const router = express.Router();
 router.use(requireAuth);
+router.param('id', (req, res, next, id) =>
+  mongoose.isValidObjectId(id)
+    ? next()
+    : res.status(400).json({ error: 'Некоректний ідентифікатор' }),
+);
 
 function formatBattleForUser(battle, userId) {
   if (!battle) return null;
@@ -49,9 +59,7 @@ router.get('/state', async (req, res) => {
   try {
     const uid = req.user._id;
     const [openChallenges, myBattle, recentHistory] = await Promise.all([
-      PvpBattle.find({ status: 'waiting' })
-        .sort({ createdAt: -1 })
-        .limit(20),
+      PvpBattle.find({ status: 'waiting' }).sort({ createdAt: -1 }).limit(20),
       PvpBattle.findOne({
         status: { $in: ['waiting', 'active'] },
         $or: [{ challengerId: uid }, { opponentId: uid }],
@@ -71,6 +79,7 @@ router.get('/state', async (req, res) => {
       history: recentHistory.map((h) => formatBattleForUser(h, uid)),
     });
   } catch (err) {
+    console.error('[PVP]', err);
     return res.status(500).json({ error: 'Не вдалося завантажити стан PvP арени' });
   }
 });
@@ -87,14 +96,14 @@ router.post('/challenges', async (req, res) => {
       }),
     ]);
 
-    if (activePve) {
-      return res.status(400).json({ error: 'Спочатку завершіть поточний бій проти бота' });
+    if (activePve || (await inGroupBattle(uid))) {
+      return res.status(400).json({ error: 'Спочатку завершіть поточний бій' });
     }
     if (activePvp) {
       return res.status(400).json({ error: 'У вас уже є активна заявка або PvP-бій' });
     }
     if (req.user.hp <= 0) {
-      return res.status(400).json({ error: 'Здоров\'я на нулі. Відновіть HP перед викликом.' });
+      return res.status(400).json({ error: "Здоров'я на нулі. Відновіть HP перед викликом." });
     }
 
     const battle = await PvpBattle.create({
@@ -117,7 +126,8 @@ router.post('/challenges', async (req, res) => {
 
     return res.status(201).json({ battle: formatBattleForUser(battle, uid) });
   } catch (err) {
-    return res.status(500).json({ error: 'Не вдалося створити PvP-виклик', details: err.message });
+    console.error('[PVP]', err);
+    return res.status(500).json({ error: 'Не вдалося створити PvP-виклик' });
   }
 });
 
@@ -136,6 +146,7 @@ router.post('/challenges/:id/cancel', async (req, res) => {
     await battle.save();
     return res.json({ ok: true });
   } catch (err) {
+    console.error('[PVP]', err);
     return res.status(500).json({ error: 'Не вдалося скасувати заявку' });
   }
 });
@@ -152,11 +163,11 @@ router.post('/challenges/:id/accept', async (req, res) => {
       }),
     ]);
 
-    if (activePve || activePvp) {
+    if (activePve || activePvp || (await inGroupBattle(uid))) {
       return res.status(400).json({ error: 'У вас уже є активний бій або відкрита заявка' });
     }
     if (req.user.hp <= 0) {
-      return res.status(400).json({ error: 'Здоров\'я на нулі. Спочатку відновіть HP.' });
+      return res.status(400).json({ error: "Здоров'я на нулі. Спочатку відновіть HP." });
     }
 
     const battle = await PvpBattle.findOne({ _id: req.params.id, status: 'waiting' });
@@ -184,7 +195,8 @@ router.post('/challenges/:id/accept', async (req, res) => {
 
     return res.json({ battle: formatBattleForUser(battle, uid) });
   } catch (err) {
-    return res.status(500).json({ error: 'Не вдалося прийняти виклик', details: err.message });
+    console.error('[PVP]', err);
+    return res.status(500).json({ error: 'Не вдалося прийняти виклик' });
   }
 });
 
@@ -200,7 +212,7 @@ router.post('/battles/:id/turn', async (req, res) => {
     }
 
     const uid = req.user._id.toString();
-    const battle = await PvpBattle.findOne({
+    let battle = await PvpBattle.findOne({
       _id: req.params.id,
       status: 'active',
       $or: [{ challengerId: uid }, { opponentId: uid }],
@@ -211,16 +223,46 @@ router.post('/battles/:id/turn', async (req, res) => {
 
     const isChallenger = battle.challengerId.toString() === uid;
     const mySlot = isChallenger ? 'challenger' : 'opponent';
-    if (battle.pendingMoves[mySlot]?.attackZone) {
-      return res.status(400).json({ error: 'Ви вже зробили хід у цьому раунді. Очікуйте суперника.' });
+
+    // Атомарно фіксуємо хід: повторна відправка або гонка запитів не пройде
+    const updated = await PvpBattle.findOneAndUpdate(
+      { _id: battle._id, status: 'active', [`pendingMoves.${mySlot}.attackZone`]: null },
+      { $set: { [`pendingMoves.${mySlot}`]: { attackZone, blockPair } } },
+      { new: true },
+    );
+    if (!updated) {
+      return res
+        .status(400)
+        .json({ error: 'Ви вже зробили хід у цьому раунді. Очікуйте суперника.' });
     }
 
-    battle.pendingMoves[mySlot] = { attackZone, blockPair };
+    // Лише один запит "забирає" раунд для розрахунку
+    const emptyMove = { attackZone: null, blockPair: null };
+    const claimed = await PvpBattle.findOneAndUpdate(
+      {
+        _id: battle._id,
+        status: 'active',
+        'pendingMoves.challenger.attackZone': { $ne: null },
+        'pendingMoves.opponent.attackZone': { $ne: null },
+      },
+      { $set: { 'pendingMoves.challenger': emptyMove, 'pendingMoves.opponent': emptyMove } },
+      { new: false },
+    );
 
-    const cMove = battle.pendingMoves.challenger;
-    const oMove = battle.pendingMoves.opponent;
+    if (!claimed) {
+      const freshUser = await User.findById(req.user._id);
+      await freshUser.populateGear();
+      return res.json({
+        battle: formatBattleForUser(updated, req.user._id),
+        user: freshUser.toSafeJSON(),
+      });
+    }
 
-    if (cMove?.attackZone && oMove?.attackZone) {
+    battle = claimed;
+    const cMove = claimed.pendingMoves.challenger;
+    const oMove = claimed.pendingMoves.opponent;
+
+    {
       const currentRound = battle.round;
       const cStrike = resolveStrike(
         battle.challengerName,
@@ -228,7 +270,7 @@ router.post('/battles/:id/turn', async (req, res) => {
         battle.opponentName,
         battle.opponentStats,
         cMove.attackZone,
-        BLOCK_PAIRS[oMove.blockPair]
+        BLOCK_PAIRS[oMove.blockPair],
       );
       const oStrike = resolveStrike(
         battle.opponentName,
@@ -236,7 +278,7 @@ router.post('/battles/:id/turn', async (req, res) => {
         battle.challengerName,
         battle.challengerStats,
         oMove.attackZone,
-        BLOCK_PAIRS[cMove.blockPair]
+        BLOCK_PAIRS[cMove.blockPair],
       );
 
       battle.opponentHp = Math.max(0, battle.opponentHp - cStrike.damage);
@@ -244,13 +286,8 @@ router.post('/battles/:id/turn', async (req, res) => {
 
       battle.log.push(
         { round: currentRound, type: cStrike.type, text: cStrike.text },
-        { round: currentRound, type: oStrike.type, text: oStrike.text }
+        { round: currentRound, type: oStrike.type, text: oStrike.text },
       );
-
-      battle.pendingMoves = {
-        challenger: { attackZone: null, blockPair: null },
-        opponent: { attackZone: null, blockPair: null },
-      };
 
       const [challengerUser, opponentUser] = await Promise.all([
         User.findById(battle.challengerId),
@@ -288,12 +325,14 @@ router.post('/battles/:id/turn', async (req, res) => {
         let leveledUp = false;
         if (winner) {
           winner.wins += 1;
+          track(winner, 'pvpWin');
           winner.gold += goldGain;
           leveledUp = winner.addXp(xpGain);
         }
         if (loser) {
           loser.losses += 1;
         }
+        if (winner && loser) applyElo(winner, loser);
 
         battle.log.push({
           round: currentRound,
@@ -321,7 +360,8 @@ router.post('/battles/:id/turn', async (req, res) => {
       user: freshUser.toSafeJSON(),
     });
   } catch (err) {
-    return res.status(500).json({ error: 'Помилка виконання PvP ходу', details: err.message });
+    console.error('[PVP]', err);
+    return res.status(500).json({ error: 'Помилка виконання PvP ходу' });
   }
 });
 
@@ -352,9 +392,11 @@ router.post('/battles/:id/flee', async (req, res) => {
       User.findById(battle.winnerId),
       User.findById(req.user._id),
     ]);
+    if (winner && loser) applyElo(winner, loser);
     if (winner) {
       await winner.populateGear();
       winner.wins += 1;
+      track(winner, 'pvpWin');
       winner.gold += 35;
       winner.addXp(50);
       await winner.save();
@@ -371,6 +413,7 @@ router.post('/battles/:id/flee', async (req, res) => {
       user: loser ? loser.toSafeJSON() : req.user.toSafeJSON(),
     });
   } catch (err) {
+    console.error('[PVP]', err);
     return res.status(500).json({ error: 'Не вдалося здатися в PvP бою' });
   }
 });

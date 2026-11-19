@@ -1,499 +1,730 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="uk">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Combats Arena — Браузерна RPG</title>
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <div id="toast" class="toast hidden"></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Combats Arena — Браузерна RPG</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="toast" class="toast hidden"></div>
 
-  <!-- Авторизація / Спрощена реєстрація -->
-  <section id="auth-screen" class="auth-wrapper">
-    <div class="auth-card">
-      <div class="brand-emblem">⚔️</div>
-      <h1>COMBATS ARENA</h1>
-      <p class="subtitle">Класичні покрокові бої, екіпірування та PvP</p>
+    <!-- Авторизація / Спрощена реєстрація -->
+    <section id="auth-screen" class="auth-wrapper">
+      <div class="auth-card">
+        <div class="brand-emblem">⚔️</div>
+        <h1>COMBATS ARENA</h1>
+        <p class="subtitle">Класичні покрокові бої, екіпірування та PvP</p>
 
-      <div class="auth-tabs">
-        <button id="tab-login" class="tab-btn active" type="button">Вхід</button>
-        <button id="tab-register" class="tab-btn" type="button">Швидка реєстрація</button>
+        <div class="auth-tabs">
+          <button id="tab-login" class="tab-btn active" type="button">Вхід</button>
+          <button id="tab-register" class="tab-btn" type="button">Швидка реєстрація</button>
+        </div>
+
+        <form id="auth-form" class="auth-form">
+          <label>
+            Нікнейм
+            <input
+              id="auth-username"
+              type="text"
+              minlength="3"
+              maxlength="24"
+              required
+              placeholder="Введіть нікнейм"
+            />
+          </label>
+          <label>
+            Пароль
+            <input
+              id="auth-password"
+              type="password"
+              minlength="8"
+              required
+              placeholder="Мінімум 8 символів"
+            />
+          </label>
+          <button id="auth-submit" class="btn btn-primary full-width" type="submit">
+            Увійти на арену
+          </button>
+        </form>
+
+        <div class="auth-hint">
+          <div>
+            Адміністратор задається змінними <code>ADMIN_USERNAME</code> /
+            <code>ADMIN_PASSWORD</code> у <code>.env</code>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <form id="auth-form" class="auth-form">
-        <label>
-          Нікнейм
-          <input id="auth-username" type="text" minlength="3" maxlength="24" required placeholder="Введіть нікнейм" />
-        </label>
-        <label>
-          Пароль
-          <input id="auth-password" type="password" minlength="4" required placeholder="Мінімум 4 символи" />
-        </label>
-        <button id="auth-submit" class="btn btn-primary full-width" type="submit">Увійти на арену</button>
-      </form>
+    <!-- Основний інтерфейс гри -->
+    <div id="app-screen" class="hidden">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="logo">⚔️ COMBATS ARENA</span>
+          <nav class="nav-tabs">
+            <button id="nav-arena" class="nav-btn active" type="button">Арена (Боти)</button>
+            <button id="nav-pvp" class="nav-btn" type="button">PvP Арена</button>
+            <button id="nav-shop" class="nav-btn" type="button">Магазин і Спорядження</button>
+            <button id="nav-group" class="nav-btn" type="button">Групові бої</button>
+            <button id="nav-clan" class="nav-btn" type="button">Клан</button>
+            <button id="nav-quests" class="nav-btn" type="button">Квести</button>
+            <button id="nav-ranking" class="nav-btn" type="button">Рейтинг</button>
+            <button id="nav-chat" class="nav-btn" type="button">Чат</button>
+            <button id="nav-admin" class="nav-btn hidden" type="button">Адмін-панель</button>
+          </nav>
+        </div>
+        <div class="topbar-right">
+          <span id="header-user" class="user-pill"></span>
+          <a
+            class="btn btn-ghost btn-sm"
+            href="http://localhost:8081"
+            target="_blank"
+            rel="noopener"
+            >Mongo Express</a
+          >
+          <button id="btn-logout" class="btn btn-danger btn-sm" type="button">Вийти</button>
+        </div>
+      </header>
 
-      <div class="auth-hint">
-        <div>Адмін за замовчуванням: <code>admin</code> / <code>admin123</code></div>
-        <div>Панель MongoDB: <a href="http://localhost:8081" target="_blank" rel="noopener">Mongo Express (:8081)</a></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Основний інтерфейс гри -->
-  <div id="app-screen" class="hidden">
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="logo">⚔️ COMBATS ARENA</span>
-        <nav class="nav-tabs">
-          <button id="nav-arena" class="nav-btn active" type="button">Арена (Боти)</button>
-          <button id="nav-pvp" class="nav-btn" type="button">PvP Арена</button>
-          <button id="nav-shop" class="nav-btn" type="button">Магазин і Спорядження</button>
-          <button id="nav-admin" class="nav-btn hidden" type="button">Адмін-панель</button>
-        </nav>
-      </div>
-      <div class="topbar-right">
-        <span id="header-user" class="user-pill"></span>
-        <a class="btn btn-ghost btn-sm" href="http://localhost:8081" target="_blank" rel="noopener">Mongo Express</a>
-        <button id="btn-logout" class="btn btn-danger btn-sm" type="button">Вийти</button>
-      </div>
-    </header>
-
-    <main class="container">
-      <!-- Вкладка: Арена (PvE) -->
-      <section id="view-arena" class="arena-grid">
-        <aside class="panel character-panel">
-          <div class="panel-header">
-            <h2 id="char-name">Персонаж</h2>
-            <span id="char-level" class="badge">Рівень 1</span>
-          </div>
-
-          <div class="bar-group">
-            <div class="bar-label">
-              <span>Здоров'я (HP)</span>
-              <span id="char-hp-text">110 / 110</span>
-            </div>
-            <div class="progress-track">
-              <div id="char-hp-bar" class="progress-fill hp-fill" style="width: 100%"></div>
-            </div>
-          </div>
-
-          <div class="bar-group">
-            <div class="bar-label">
-              <span>Досвід (XP)</span>
-              <span id="char-xp-text">0 / 100</span>
-            </div>
-            <div class="progress-track">
-              <div id="char-xp-bar" class="progress-fill xp-fill" style="width: 0%"></div>
-            </div>
-          </div>
-
-          <div class="meta-row">
-            <div>Золото: <strong id="char-gold">80</strong></div>
-            <div>Перемоги: <strong id="char-wins">0</strong></div>
-            <div>Поразки: <strong id="char-losses">0</strong></div>
-          </div>
-
-          <button id="btn-heal" class="btn btn-success full-width" type="button">Відновити HP (100%)</button>
-
-          <div class="stats-block">
-            <div class="stats-header">
-              <h3>Характеристики</h3>
-              <span id="char-free-stats" class="badge badge-gold">Вільних: 0</span>
-            </div>
-            <ul id="char-stats-list" class="stats-list"></ul>
-          </div>
-
-          <div class="stats-block">
-            <div class="stats-header">
-              <h3>Бойові параметри</h3>
-            </div>
-            <div class="gear-summary" id="char-combat-summary"></div>
-          </div>
-
-          <div class="stats-block">
-            <div class="stats-header">
-              <h3>Одягнене спорядження</h3>
-            </div>
-            <ul id="char-equipped-list" class="stats-list"></ul>
-          </div>
-        </aside>
-
-        <section class="panel battle-panel">
-          <div id="bot-lobby">
+      <main class="container">
+        <!-- Вкладка: Арена (PvE) -->
+        <section id="view-arena" class="arena-grid">
+          <aside class="panel character-panel">
             <div class="panel-header">
-              <h2>Доступні боти для бою</h2>
-              <span class="muted">Оберіть супротивника на арені</span>
+              <h2 id="char-name">Персонаж</h2>
+              <span id="char-level" class="badge">Рівень 1</span>
             </div>
-            <div id="bots-grid" class="bots-grid"></div>
+
+            <div class="avatar-box">
+              <div id="char-avatar"></div>
+              <button id="btn-edit-avatar" class="btn btn-ghost btn-sm" type="button">
+                Змінити вигляд
+              </button>
+            </div>
+
+            <div class="bar-group">
+              <div class="bar-label">
+                <span>Здоров'я (HP)</span>
+                <span id="char-hp-text">110 / 110</span>
+              </div>
+              <div class="progress-track">
+                <div id="char-hp-bar" class="progress-fill hp-fill" style="width: 100%"></div>
+              </div>
+            </div>
+
+            <div class="bar-group">
+              <div class="bar-label">
+                <span>Досвід (XP)</span>
+                <span id="char-xp-text">0 / 100</span>
+              </div>
+              <div class="progress-track">
+                <div id="char-xp-bar" class="progress-fill xp-fill" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <div class="meta-row">
+              <div>Золото: <strong id="char-gold">80</strong></div>
+              <div>Перемоги: <strong id="char-wins">0</strong></div>
+              <div>Поразки: <strong id="char-losses">0</strong></div>
+            </div>
+
+            <button id="btn-heal" class="btn btn-success full-width" type="button">
+              Відновити HP (100%)
+            </button>
+
+            <div class="stats-block">
+              <div class="stats-header">
+                <h3>Характеристики</h3>
+                <span id="char-free-stats" class="badge badge-gold">Вільних: 0</span>
+              </div>
+              <ul id="char-stats-list" class="stats-list"></ul>
+            </div>
+
+            <div class="stats-block">
+              <div class="stats-header">
+                <h3>Бойові параметри</h3>
+              </div>
+              <div class="gear-summary" id="char-combat-summary"></div>
+            </div>
+
+            <div class="stats-block">
+              <div class="stats-header">
+                <h3>Одягнене спорядження</h3>
+              </div>
+              <ul id="char-equipped-list" class="stats-list"></ul>
+            </div>
+          </aside>
+
+          <section class="panel battle-panel">
+            <div id="bot-lobby">
+              <div class="panel-header">
+                <h2>Доступні боти для бою</h2>
+                <span class="muted">Оберіть супротивника на арені</span>
+              </div>
+              <div id="bots-grid" class="bots-grid"></div>
+
+              <div class="history-section">
+                <h3>Останні PvE бої</h3>
+                <div id="battle-history" class="history-list"></div>
+              </div>
+            </div>
+
+            <div id="battle-arena" class="hidden">
+              <div class="panel-header">
+                <h2>Бій на арені — Раунд <span id="battle-round">0</span></h2>
+                <button id="btn-flee" class="btn btn-danger btn-sm" type="button">Здатися</button>
+              </div>
+
+              <div class="versus-grid">
+                <div class="fighter-box">
+                  <div class="fighter-title" id="vs-player-name">Гравець</div>
+                  <div class="bar-label">
+                    <span>HP</span>
+                    <span id="vs-player-hp">100 / 100</span>
+                  </div>
+                  <div class="progress-track">
+                    <div id="vs-player-bar" class="progress-fill hp-fill" style="width: 100%"></div>
+                  </div>
+                </div>
+
+                <div class="vs-divider">VS</div>
+
+                <div class="fighter-box">
+                  <div class="fighter-title" id="vs-bot-name">Бот</div>
+                  <div class="bar-label">
+                    <span>HP</span>
+                    <span id="vs-bot-hp">100 / 100</span>
+                  </div>
+                  <div class="progress-track">
+                    <div
+                      id="vs-bot-bar"
+                      class="progress-fill bot-hp-fill"
+                      style="width: 100%"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="battle-controls" class="combat-controls">
+                <div class="zone-column">
+                  <h3>Удар (оберіть 1 зону)</h3>
+                  <div class="zone-options">
+                    <label class="zone-btn"
+                      ><input type="radio" name="attackZone" value="head" checked /> Голова</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="attackZone" value="chest" /> Груди</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="attackZone" value="belly" /> Пояс</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="attackZone" value="legs" /> Ноги</label
+                    >
+                  </div>
+                </div>
+
+                <div class="zone-column">
+                  <h3>Блок (2 суміжні зони)</h3>
+                  <div class="zone-options">
+                    <label class="zone-btn"
+                      ><input type="radio" name="blockPair" value="head-chest" checked /> Голова +
+                      Груди</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="blockPair" value="chest-belly" /> Груди +
+                      Пояс</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="blockPair" value="belly-legs" /> Пояс + Ноги</label
+                    >
+                    <label class="zone-btn"
+                      ><input type="radio" name="blockPair" value="legs-head" /> Ноги +
+                      Голова</label
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div id="battle-action-row" class="battle-action-row">
+                <button id="btn-turn" class="btn btn-primary full-width" type="button">
+                  Вперед! Завдати удару
+                </button>
+              </div>
+
+              <div id="battle-finish-banner" class="finish-banner hidden">
+                <div id="battle-finish-text"></div>
+                <button id="btn-back-lobby" class="btn btn-primary" type="button">
+                  Повернутися до арени
+                </button>
+              </div>
+
+              <div class="combat-log-wrapper">
+                <h3>Лог бою</h3>
+                <div id="combat-log" class="combat-log"></div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <!-- Вкладка: PvP Арена -->
+        <section id="view-pvp" class="hidden">
+          <div id="pvp-lobby" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>PvP Арена — Дуелі між гравцями</h2>
+                <span class="muted"
+                  >Створіть заявку або прийміть виклик іншого гравця (автооновлення кожні 2.5
+                  сек)</span
+                >
+              </div>
+              <button id="btn-pvp-create" class="btn btn-primary" type="button">
+                + Кинути виклик
+              </button>
+            </div>
+
+            <div id="pvp-waiting-box" class="finish-banner hidden">
+              <div>⏳ Ваша заявка на PvP активна. Очікуємо, поки інший гравець прийме бій...</div>
+              <button id="btn-pvp-cancel" class="btn btn-danger btn-sm" type="button">
+                Скасувати заявку
+              </button>
+            </div>
+
+            <div class="panel-header" style="margin-top: 14px">
+              <h3>Відкриті виклики</h3>
+              <button id="btn-pvp-refresh" class="btn btn-ghost btn-sm" type="button">
+                Оновити
+              </button>
+            </div>
+            <div id="pvp-challenges-list" class="bots-grid"></div>
 
             <div class="history-section">
-              <h3>Останні PvE бої</h3>
-              <div id="battle-history" class="history-list"></div>
+              <h3>Історія ваших PvP дуелей</h3>
+              <div id="pvp-history" class="history-list"></div>
             </div>
           </div>
 
-          <div id="battle-arena" class="hidden">
+          <div id="pvp-arena" class="panel hidden">
             <div class="panel-header">
-              <h2>Бій на арені — Раунд <span id="battle-round">0</span></h2>
-              <button id="btn-flee" class="btn btn-danger btn-sm" type="button">Здатися</button>
+              <h2>PvP Дуель — Раунд <span id="pvp-round">1</span></h2>
+              <button id="btn-pvp-flee" class="btn btn-danger btn-sm" type="button">Здатися</button>
             </div>
 
             <div class="versus-grid">
               <div class="fighter-box">
-                <div class="fighter-title" id="vs-player-name">Гравець</div>
+                <div class="fighter-title" id="pvp-c-name">Гравець 1</div>
                 <div class="bar-label">
                   <span>HP</span>
-                  <span id="vs-player-hp">100 / 100</span>
+                  <span id="pvp-c-hp">100 / 100</span>
                 </div>
                 <div class="progress-track">
-                  <div id="vs-player-bar" class="progress-fill hp-fill" style="width: 100%"></div>
+                  <div id="pvp-c-bar" class="progress-fill hp-fill" style="width: 100%"></div>
                 </div>
               </div>
 
               <div class="vs-divider">VS</div>
 
               <div class="fighter-box">
-                <div class="fighter-title" id="vs-bot-name">Бот</div>
+                <div class="fighter-title" id="pvp-o-name">Гравець 2</div>
                 <div class="bar-label">
                   <span>HP</span>
-                  <span id="vs-bot-hp">100 / 100</span>
+                  <span id="pvp-o-hp">100 / 100</span>
                 </div>
                 <div class="progress-track">
-                  <div id="vs-bot-bar" class="progress-fill bot-hp-fill" style="width: 100%"></div>
+                  <div id="pvp-o-bar" class="progress-fill bot-hp-fill" style="width: 100%"></div>
                 </div>
               </div>
             </div>
 
-            <div id="battle-controls" class="combat-controls">
+            <div id="pvp-status-banner" class="pvp-status-banner"></div>
+
+            <div id="pvp-controls" class="combat-controls">
               <div class="zone-column">
-                <h3>Удар (оберіть 1 зону)</h3>
+                <h3>Удар (1 зона)</h3>
                 <div class="zone-options">
-                  <label class="zone-btn"><input type="radio" name="attackZone" value="head" checked /> Голова</label>
-                  <label class="zone-btn"><input type="radio" name="attackZone" value="chest" /> Груди</label>
-                  <label class="zone-btn"><input type="radio" name="attackZone" value="belly" /> Пояс</label>
-                  <label class="zone-btn"><input type="radio" name="attackZone" value="legs" /> Ноги</label>
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpAttackZone" value="head" checked /> Голова</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpAttackZone" value="chest" /> Груди</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpAttackZone" value="belly" /> Пояс</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpAttackZone" value="legs" /> Ноги</label
+                  >
                 </div>
               </div>
-
               <div class="zone-column">
                 <h3>Блок (2 суміжні зони)</h3>
                 <div class="zone-options">
-                  <label class="zone-btn"><input type="radio" name="blockPair" value="head-chest" checked /> Голова + Груди</label>
-                  <label class="zone-btn"><input type="radio" name="blockPair" value="chest-belly" /> Груди + Пояс</label>
-                  <label class="zone-btn"><input type="radio" name="blockPair" value="belly-legs" /> Пояс + Ноги</label>
-                  <label class="zone-btn"><input type="radio" name="blockPair" value="legs-head" /> Ноги + Голова</label>
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpBlockPair" value="head-chest" checked /> Голова +
+                    Груди</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpBlockPair" value="chest-belly" /> Груди +
+                    Пояс</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpBlockPair" value="belly-legs" /> Пояс +
+                    Ноги</label
+                  >
+                  <label class="zone-btn"
+                    ><input type="radio" name="pvpBlockPair" value="legs-head" /> Ноги +
+                    Голова</label
+                  >
                 </div>
               </div>
             </div>
 
-            <div id="battle-action-row" class="battle-action-row">
-              <button id="btn-turn" class="btn btn-primary full-width" type="button">Вперед! Завдати удару</button>
+            <div id="pvp-action-row" class="battle-action-row">
+              <button id="btn-pvp-turn" class="btn btn-primary full-width" type="button">
+                Підтвердити хід у PvP
+              </button>
             </div>
 
-            <div id="battle-finish-banner" class="finish-banner hidden">
-              <div id="battle-finish-text"></div>
-              <button id="btn-back-lobby" class="btn btn-primary" type="button">Повернутися до арени</button>
+            <div id="pvp-finish-banner" class="finish-banner hidden">
+              <div id="pvp-finish-text"></div>
+              <button id="btn-pvp-back" class="btn btn-primary" type="button">
+                Повернутися до PvP лобі
+              </button>
             </div>
 
             <div class="combat-log-wrapper">
-              <h3>Лог бою</h3>
-              <div id="combat-log" class="combat-log"></div>
+              <h3>Лог PvP бою</h3>
+              <div id="pvp-log" class="combat-log"></div>
             </div>
           </div>
         </section>
-      </section>
 
-      <!-- Вкладка: PvP Арена -->
-      <section id="view-pvp" class="hidden">
-        <div id="pvp-lobby" class="panel">
-          <div class="panel-header">
-            <div>
-              <h2>PvP Арена — Дуелі між гравцями</h2>
-              <span class="muted">Створіть заявку або прийміть виклик іншого гравця (автооновлення кожні 2.5 сек)</span>
+        <!-- Вкладка: Магазин і Спорядження -->
+        <section id="view-shop" class="shop-grid hidden">
+          <aside class="panel">
+            <div class="panel-header">
+              <h2>Спорядження</h2>
+              <span class="badge badge-gold">Золото: <span id="shop-gold">0</span></span>
             </div>
-            <button id="btn-pvp-create" class="btn btn-primary" type="button">+ Кинути виклик</button>
-          </div>
+            <div id="equipment-slots" class="slots-list"></div>
 
-          <div id="pvp-waiting-box" class="finish-banner hidden">
-            <div>⏳ Ваша заявка на PvP активна. Очікуємо, поки інший гравець прийме бій...</div>
-            <button id="btn-pvp-cancel" class="btn btn-danger btn-sm" type="button">Скасувати заявку</button>
-          </div>
+            <div class="history-section">
+              <h3>Інвентар</h3>
+              <div id="inventory-list" class="inventory-list"></div>
+            </div>
+          </aside>
 
-          <div class="panel-header" style="margin-top: 14px;">
-            <h3>Відкриті виклики</h3>
-            <button id="btn-pvp-refresh" class="btn btn-ghost btn-sm" type="button">Оновити</button>
-          </div>
-          <div id="pvp-challenges-list" class="bots-grid"></div>
-
-          <div class="history-section">
-            <h3>Історія ваших PvP дуелей</h3>
-            <div id="pvp-history" class="history-list"></div>
-          </div>
-        </div>
-
-        <div id="pvp-arena" class="panel hidden">
-          <div class="panel-header">
-            <h2>PvP Дуель — Раунд <span id="pvp-round">1</span></h2>
-            <button id="btn-pvp-flee" class="btn btn-danger btn-sm" type="button">Здатися</button>
-          </div>
-
-          <div class="versus-grid">
-            <div class="fighter-box">
-              <div class="fighter-title" id="pvp-c-name">Гравець 1</div>
-              <div class="bar-label">
-                <span>HP</span>
-                <span id="pvp-c-hp">100 / 100</span>
-              </div>
-              <div class="progress-track">
-                <div id="pvp-c-bar" class="progress-fill hp-fill" style="width: 100%"></div>
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Лавка зброї та обладунків</h2>
+              <div class="filter-row" id="shop-filters">
+                <button class="btn btn-ghost btn-xs active" data-slot-filter="all" type="button">
+                  Усі
+                </button>
+                <button class="btn btn-ghost btn-xs" data-slot-filter="weapon" type="button">
+                  Зброя
+                </button>
+                <button class="btn btn-ghost btn-xs" data-slot-filter="armor" type="button">
+                  Броня
+                </button>
+                <button class="btn btn-ghost btn-xs" data-slot-filter="helmet" type="button">
+                  Шоломи
+                </button>
+                <button class="btn btn-ghost btn-xs" data-slot-filter="ring" type="button">
+                  Кільця
+                </button>
               </div>
             </div>
-
-            <div class="vs-divider">VS</div>
-
-            <div class="fighter-box">
-              <div class="fighter-title" id="pvp-o-name">Гравець 2</div>
-              <div class="bar-label">
-                <span>HP</span>
-                <span id="pvp-o-hp">100 / 100</span>
-              </div>
-              <div class="progress-track">
-                <div id="pvp-o-bar" class="progress-fill bot-hp-fill" style="width: 100%"></div>
-              </div>
-            </div>
-          </div>
-
-          <div id="pvp-status-banner" class="pvp-status-banner"></div>
-
-          <div id="pvp-controls" class="combat-controls">
-            <div class="zone-column">
-              <h3>Удар (1 зона)</h3>
-              <div class="zone-options">
-                <label class="zone-btn"><input type="radio" name="pvpAttackZone" value="head" checked /> Голова</label>
-                <label class="zone-btn"><input type="radio" name="pvpAttackZone" value="chest" /> Груди</label>
-                <label class="zone-btn"><input type="radio" name="pvpAttackZone" value="belly" /> Пояс</label>
-                <label class="zone-btn"><input type="radio" name="pvpAttackZone" value="legs" /> Ноги</label>
-              </div>
-            </div>
-            <div class="zone-column">
-              <h3>Блок (2 суміжні зони)</h3>
-              <div class="zone-options">
-                <label class="zone-btn"><input type="radio" name="pvpBlockPair" value="head-chest" checked /> Голова + Груди</label>
-                <label class="zone-btn"><input type="radio" name="pvpBlockPair" value="chest-belly" /> Груди + Пояс</label>
-                <label class="zone-btn"><input type="radio" name="pvpBlockPair" value="belly-legs" /> Пояс + Ноги</label>
-                <label class="zone-btn"><input type="radio" name="pvpBlockPair" value="legs-head" /> Ноги + Голова</label>
-              </div>
-            </div>
-          </div>
-
-          <div id="pvp-action-row" class="battle-action-row">
-            <button id="btn-pvp-turn" class="btn btn-primary full-width" type="button">Підтвердити хід у PvP</button>
-          </div>
-
-          <div id="pvp-finish-banner" class="finish-banner hidden">
-            <div id="pvp-finish-text"></div>
-            <button id="btn-pvp-back" class="btn btn-primary" type="button">Повернутися до PvP лобі</button>
-          </div>
-
-          <div class="combat-log-wrapper">
-            <h3>Лог PvP бою</h3>
-            <div id="pvp-log" class="combat-log"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Вкладка: Магазин і Спорядження -->
-      <section id="view-shop" class="shop-grid hidden">
-        <aside class="panel">
-          <div class="panel-header">
-            <h2>Спорядження</h2>
-            <span class="badge badge-gold">Золото: <span id="shop-gold">0</span></span>
-          </div>
-          <div id="equipment-slots" class="slots-list"></div>
-
-          <div class="history-section">
-            <h3>Інвентар</h3>
-            <div id="inventory-list" class="inventory-list"></div>
-          </div>
-        </aside>
-
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Лавка зброї та обладунків</h2>
-            <div class="filter-row" id="shop-filters">
-              <button class="btn btn-ghost btn-xs active" data-slot-filter="all" type="button">Усі</button>
-              <button class="btn btn-ghost btn-xs" data-slot-filter="weapon" type="button">Зброя</button>
-              <button class="btn btn-ghost btn-xs" data-slot-filter="armor" type="button">Броня</button>
-              <button class="btn btn-ghost btn-xs" data-slot-filter="helmet" type="button">Шоломи</button>
-              <button class="btn btn-ghost btn-xs" data-slot-filter="ring" type="button">Кільця</button>
-            </div>
-          </div>
-          <div id="shop-items-grid" class="bots-grid"></div>
+            <div id="shop-items-grid" class="bots-grid"></div>
+          </section>
         </section>
-      </section>
 
-      <!-- Вкладка: Адмін-панель -->
-      <section id="view-admin" class="hidden">
-        <div class="admin-subtabs">
-          <button id="admin-tab-users" class="tab-btn active" type="button">Персонажі (CRUD + Покращення)</button>
-          <button id="admin-tab-bots" class="tab-btn" type="button">Боти арени (CRUD)</button>
-          <button id="admin-tab-items" class="tab-btn" type="button">Магазин / Предмети (CRUD)</button>
-        </div>
+        <!-- Вкладка: Адмін-панель -->
+        <section id="view-group" class="hidden">
+          <div id="group-root"></div>
+        </section>
 
-        <div id="admin-users-section" class="panel">
-          <div class="panel-header">
-            <h2>Керування персонажами та покращення характеристик</h2>
-            <button id="btn-toggle-create-user" class="btn btn-primary btn-sm" type="button">+ Новий персонаж</button>
+        <section id="view-clan" class="hidden">
+          <div id="clan-root"></div>
+        </section>
+
+        <section id="view-quests" class="hidden">
+          <div id="quests-root"></div>
+        </section>
+
+        <section id="view-ranking" class="hidden">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Рейтинг гравців (Elo)</h2>
+              <span id="ranking-me" class="muted"></span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Гравець</th>
+                    <th>Рівень</th>
+                    <th>Рейтинг</th>
+                    <th>Перемоги / Поразки</th>
+                  </tr>
+                </thead>
+                <tbody id="ranking-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-chat" class="hidden">
+          <div class="panel chat-panel">
+            <div class="panel-header">
+              <h2>Загальний чат</h2>
+              <span id="chat-status" class="muted">Підключення...</span>
+            </div>
+            <div id="chat-messages" class="chat-messages"></div>
+            <form id="chat-form" class="chat-form" autocomplete="off">
+              <input id="chat-input" maxlength="300" placeholder="Повідомлення (до 300 символів)" />
+              <button class="btn btn-primary" type="submit">Надіслати</button>
+            </form>
+          </div>
+        </section>
+
+        <section id="view-admin" class="hidden">
+          <div class="admin-subtabs">
+            <button id="admin-tab-users" class="tab-btn active" type="button">
+              Персонажі (CRUD + Покращення)
+            </button>
+            <button id="admin-tab-bots" class="tab-btn" type="button">Боти арени (CRUD)</button>
+            <button id="admin-tab-items" class="tab-btn" type="button">
+              Магазин / Предмети (CRUD)
+            </button>
+            <button id="admin-tab-details" class="tab-btn" type="button">Дані користувачів</button>
           </div>
 
-          <form id="create-user-form" class="inline-form hidden">
-            <input name="username" placeholder="Нікнейм" required minlength="3" />
-            <input name="password" type="password" placeholder="Пароль" required minlength="4" />
+          <div id="admin-details-section" class="panel hidden">
+            <div class="panel-header">
+              <h2>Детальні дані користувачів (IP, User-Agent, активність)</h2>
+              <button id="btn-refresh-details" class="btn btn-ghost btn-sm" type="button">
+                Оновити
+              </button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Нікнейм</th>
+                    <th>Статус</th>
+                    <th>Реєстрація (IP / UA)</th>
+                    <th>Останній IP / User-Agent</th>
+                    <th>Останній вхід / активність</th>
+                    <th>Входів</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-details-tbody"></tbody>
+              </table>
+            </div>
+            <div id="admin-user-detail-card" class="hidden"></div>
+          </div>
+
+          <div id="admin-users-section" class="panel">
+            <div class="panel-header">
+              <h2>Керування персонажами та покращення характеристик</h2>
+              <button id="btn-toggle-create-user" class="btn btn-primary btn-sm" type="button">
+                + Новий персонаж
+              </button>
+            </div>
+
+            <form id="create-user-form" class="inline-form hidden">
+              <input name="username" placeholder="Нікнейм" required minlength="3" />
+              <input
+                name="password"
+                type="password"
+                placeholder="Пароль (мін. 8)"
+                required
+                minlength="8"
+              />
+              <select name="role">
+                <option value="player">player</option>
+                <option value="admin">admin</option>
+              </select>
+              <input name="level" type="number" min="1" value="1" placeholder="Рівень" />
+              <input name="gold" type="number" min="0" value="100" placeholder="Золото" />
+              <input name="strength" type="number" min="1" value="5" placeholder="Сила" />
+              <input name="agility" type="number" min="1" value="5" placeholder="Спритність" />
+              <input name="intuition" type="number" min="1" value="5" placeholder="Інтуїція" />
+              <input name="endurance" type="number" min="1" value="5" placeholder="Витривалість" />
+              <button class="btn btn-success btn-sm" type="submit">Створити</button>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Нікнейм</th>
+                    <th>Роль</th>
+                    <th>Рівень / HP</th>
+                    <th>Золото</th>
+                    <th>Характеристики (Сил / Спр / Інт / Вит)</th>
+                    <th>Швидке покращення</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-users-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="admin-bots-section" class="panel hidden">
+            <div class="panel-header">
+              <h2>Керування ботами арени</h2>
+              <button id="btn-toggle-create-bot" class="btn btn-primary btn-sm" type="button">
+                + Новий бот
+              </button>
+            </div>
+
+            <form id="create-bot-form" class="inline-form hidden">
+              <input name="name" placeholder="Ім'я бота" required />
+              <input name="title" placeholder="Опис / Титул" value="Боєць Арени" />
+              <input name="level" type="number" min="1" value="1" placeholder="Рівень" />
+              <input name="rewardXp" type="number" min="1" value="50" placeholder="Нагорода XP" />
+              <input
+                name="rewardGold"
+                type="number"
+                min="0"
+                value="30"
+                placeholder="Нагорода Золото"
+              />
+              <input name="strength" type="number" min="1" value="6" placeholder="Сила" />
+              <input name="agility" type="number" min="1" value="5" placeholder="Спритність" />
+              <input name="intuition" type="number" min="1" value="5" placeholder="Інтуїція" />
+              <input name="endurance" type="number" min="1" value="6" placeholder="Витривалість" />
+              <button class="btn btn-success btn-sm" type="submit">Створити бота</button>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ім'я</th>
+                    <th>Титул</th>
+                    <th>Рівень / HP</th>
+                    <th>Нагорода</th>
+                    <th>Характеристики</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-bots-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="admin-items-section" class="panel hidden">
+            <div class="panel-header">
+              <h2>Керування предметами магазину</h2>
+              <button id="btn-toggle-create-item" class="btn btn-primary btn-sm" type="button">
+                + Новий предмет
+              </button>
+            </div>
+
+            <form id="create-item-form" class="inline-form hidden">
+              <input name="name" placeholder="Назва предмета" required />
+              <select name="slot">
+                <option value="weapon">Зброя (weapon)</option>
+                <option value="armor">Броня (armor)</option>
+                <option value="helmet">Шолом (helmet)</option>
+                <option value="ring">Кільце (ring)</option>
+              </select>
+              <input name="price" type="number" min="1" value="100" placeholder="Ціна" />
+              <input name="minLevel" type="number" min="1" value="1" placeholder="Мін. рівень" />
+              <input name="strength" type="number" value="0" placeholder="+Сила" />
+              <input name="agility" type="number" value="0" placeholder="+Спритність" />
+              <input name="intuition" type="number" value="0" placeholder="+Інтуїція" />
+              <input name="endurance" type="number" value="0" placeholder="+Витривалість" />
+              <input name="damageMin" type="number" value="0" placeholder="+Мін. шкода" />
+              <input name="damageMax" type="number" value="0" placeholder="+Макс. шкода" />
+              <input name="armor" type="number" value="0" placeholder="+Броня" />
+              <input name="description" placeholder="Короткий опис" />
+              <button class="btn btn-success btn-sm" type="submit">Додати товар</button>
+            </form>
+
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Назва</th>
+                    <th>Слот</th>
+                    <th>Ціна / Мін. рів.</th>
+                    <th>Бонуси</th>
+                    <th>Дії</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-items-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Модальне вікно редагування вигляду -->
+    <div id="avatar-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="panel-header">
+          <h3 id="avatar-modal-title">Вигляд</h3>
+          <button id="btn-close-avatar" class="btn btn-ghost btn-sm" type="button">✕</button>
+        </div>
+        <div class="avatar-editor">
+          <div id="avatar-preview" class="avatar-preview"></div>
+          <div id="avatar-fields" class="modal-form"></div>
+        </div>
+        <button id="btn-save-avatar" class="btn btn-success full-width" type="button">
+          Зберегти
+        </button>
+      </div>
+    </div>
+
+    <!-- Модальне вікно редагування персонажа -->
+    <div id="edit-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="panel-header">
+          <h3 id="edit-modal-title">Редагування персонажа</h3>
+          <button id="btn-close-modal" class="btn btn-ghost btn-sm" type="button">✕</button>
+        </div>
+        <form id="edit-user-form" class="modal-form">
+          <input type="hidden" name="id" />
+          <label>Нікнейм <input name="username" required /></label>
+          <label
+            >Новий пароль (необов'язково)
+            <input name="password" type="password" placeholder="Залиште порожнім"
+          /></label>
+          <label
+            >Роль
             <select name="role">
               <option value="player">player</option>
               <option value="admin">admin</option>
             </select>
-            <input name="level" type="number" min="1" value="1" placeholder="Рівень" />
-            <input name="gold" type="number" min="0" value="100" placeholder="Золото" />
-            <input name="strength" type="number" min="1" value="5" placeholder="Сила" />
-            <input name="agility" type="number" min="1" value="5" placeholder="Спритність" />
-            <input name="intuition" type="number" min="1" value="5" placeholder="Інтуїція" />
-            <input name="endurance" type="number" min="1" value="5" placeholder="Витривалість" />
-            <button class="btn btn-success btn-sm" type="submit">Створити</button>
-          </form>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Нікнейм</th>
-                  <th>Роль</th>
-                  <th>Рівень / HP</th>
-                  <th>Золото</th>
-                  <th>Характеристики (Сил / Спр / Інт / Вит)</th>
-                  <th>Швидке покращення</th>
-                  <th>Дії</th>
-                </tr>
-              </thead>
-              <tbody id="admin-users-tbody"></tbody>
-            </table>
+          </label>
+          <div class="grid-2">
+            <label>Рівень <input name="level" type="number" min="1" required /></label>
+            <label>Золото <input name="gold" type="number" min="0" required /></label>
+            <label>Вільні очки <input name="freeStats" type="number" min="0" required /></label>
+            <label>Сила <input name="strength" type="number" min="1" required /></label>
+            <label>Спритність <input name="agility" type="number" min="1" required /></label>
+            <label>Інтуїція <input name="intuition" type="number" min="1" required /></label>
+            <label>Витривалість <input name="endurance" type="number" min="1" required /></label>
           </div>
-        </div>
-
-        <div id="admin-bots-section" class="panel hidden">
-          <div class="panel-header">
-            <h2>Керування ботами арени</h2>
-            <button id="btn-toggle-create-bot" class="btn btn-primary btn-sm" type="button">+ Новий бот</button>
-          </div>
-
-          <form id="create-bot-form" class="inline-form hidden">
-            <input name="name" placeholder="Ім'я бота" required />
-            <input name="title" placeholder="Опис / Титул" value="Боєць Арени" />
-            <input name="level" type="number" min="1" value="1" placeholder="Рівень" />
-            <input name="rewardXp" type="number" min="1" value="50" placeholder="Нагорода XP" />
-            <input name="rewardGold" type="number" min="0" value="30" placeholder="Нагорода Золото" />
-            <input name="strength" type="number" min="1" value="6" placeholder="Сила" />
-            <input name="agility" type="number" min="1" value="5" placeholder="Спритність" />
-            <input name="intuition" type="number" min="1" value="5" placeholder="Інтуїція" />
-            <input name="endurance" type="number" min="1" value="6" placeholder="Витривалість" />
-            <button class="btn btn-success btn-sm" type="submit">Створити бота</button>
-          </form>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Ім'я</th>
-                  <th>Титул</th>
-                  <th>Рівень / HP</th>
-                  <th>Нагорода</th>
-                  <th>Характеристики</th>
-                  <th>Дії</th>
-                </tr>
-              </thead>
-              <tbody id="admin-bots-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="admin-items-section" class="panel hidden">
-          <div class="panel-header">
-            <h2>Керування предметами магазину</h2>
-            <button id="btn-toggle-create-item" class="btn btn-primary btn-sm" type="button">+ Новий предмет</button>
-          </div>
-
-          <form id="create-item-form" class="inline-form hidden">
-            <input name="name" placeholder="Назва предмета" required />
-            <select name="slot">
-              <option value="weapon">Зброя (weapon)</option>
-              <option value="armor">Броня (armor)</option>
-              <option value="helmet">Шолом (helmet)</option>
-              <option value="ring">Кільце (ring)</option>
-            </select>
-            <input name="price" type="number" min="1" value="100" placeholder="Ціна" />
-            <input name="minLevel" type="number" min="1" value="1" placeholder="Мін. рівень" />
-            <input name="strength" type="number" value="0" placeholder="+Сила" />
-            <input name="agility" type="number" value="0" placeholder="+Спритність" />
-            <input name="intuition" type="number" value="0" placeholder="+Інтуїція" />
-            <input name="endurance" type="number" value="0" placeholder="+Витривалість" />
-            <input name="damageMin" type="number" value="0" placeholder="+Мін. шкода" />
-            <input name="damageMax" type="number" value="0" placeholder="+Макс. шкода" />
-            <input name="armor" type="number" value="0" placeholder="+Броня" />
-            <input name="description" placeholder="Короткий опис" />
-            <button class="btn btn-success btn-sm" type="submit">Додати товар</button>
-          </form>
-
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Назва</th>
-                  <th>Слот</th>
-                  <th>Ціна / Мін. рів.</th>
-                  <th>Бонуси</th>
-                  <th>Дії</th>
-                </tr>
-              </thead>
-              <tbody id="admin-items-tbody"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- Модальне вікно редагування персонажа -->
-  <div id="edit-modal" class="modal hidden">
-    <div class="modal-card">
-      <div class="panel-header">
-        <h3 id="edit-modal-title">Редагування персонажа</h3>
-        <button id="btn-close-modal" class="btn btn-ghost btn-sm" type="button">✕</button>
+          <button class="btn btn-primary full-width" type="submit">Зберегти зміни</button>
+        </form>
       </div>
-      <form id="edit-user-form" class="modal-form">
-        <input type="hidden" name="id" />
-        <label>Нікнейм <input name="username" required /></label>
-        <label>Новий пароль (необов'язково) <input name="password" type="password" placeholder="Залиште порожнім" /></label>
-        <label>Роль
-          <select name="role">
-            <option value="player">player</option>
-            <option value="admin">admin</option>
-          </select>
-        </label>
-        <div class="grid-2">
-          <label>Рівень <input name="level" type="number" min="1" required /></label>
-          <label>Золото <input name="gold" type="number" min="0" required /></label>
-          <label>Вільні очки <input name="freeStats" type="number" min="0" required /></label>
-          <label>Сила <input name="strength" type="number" min="1" required /></label>
-          <label>Спритність <input name="agility" type="number" min="1" required /></label>
-          <label>Інтуїція <input name="intuition" type="number" min="1" required /></label>
-          <label>Витривалість <input name="endurance" type="number" min="1" required /></label>
-        </div>
-        <button class="btn btn-primary full-width" type="submit">Зберегти зміни</button>
-      </form>
     </div>
-  </div>
 
-  <script src="/app.js"></script>
-</body>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/app.js"></script>
+    <script src="/avatar.js"></script>
+    <script src="/group.js"></script>
+    <script src="/clans.js"></script>
+    <script src="/quests.js"></script>
+  </body>
 </html>

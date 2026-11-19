@@ -99,7 +99,10 @@ const DEFAULT_ITEMS = [
 
 async function seedInitialData() {
   const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  if (!process.env.ADMIN_PASSWORD || process.env.ADMIN_PASSWORD.length < 8) {
+    throw new Error('ADMIN_PASSWORD має бути заданий і містити щонайменше 8 символів');
+  }
+  const adminPassword = process.env.ADMIN_PASSWORD;
 
   const existingAdmin = await User.findOne({ username: adminUsername });
   if (!existingAdmin) {
@@ -115,7 +118,7 @@ async function seedInitialData() {
     });
     admin.recalcVitals(true);
     await admin.save();
-    console.log(`[SEED] Створено адміністратора: ${adminUsername} / ${adminPassword}`);
+    console.log(`[SEED] Створено адміністратора: ${adminUsername}`);
   }
 
   for (const botData of DEFAULT_BOTS) {

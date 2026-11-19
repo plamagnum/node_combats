@@ -52,7 +52,17 @@ async function api(path, options = {}) {
   if (!res.ok) {
     throw new Error(data.error || 'Помилка запиту');
   }
+  if (Array.isArray(data.unlocked) && data.unlocked.length) {
+    showToast(`🏆 Досягнення: ${data.unlocked.join(', ')}`);
+  }
   return data;
+}
+
+// Колір смуги HP: зелена (>60%), жовта (30–60%), червона (<30%)
+function setHpBar(el, hp, maxHp) {
+  const pct = maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
+  el.style.width = `${pct}%`;
+  el.dataset.hp = pct > 60 ? 'high' : pct >= 30 ? 'mid' : 'low';
 }
 
 function escapeHtml(str) {
@@ -109,6 +119,7 @@ $('auth-form').addEventListener('submit', async (e) => {
 
 $('btn-logout').addEventListener('click', () => {
   stopPvpPolling();
+  disconnectChat();
   localStorage.removeItem('combats_token');
   state.token = '';
   state.user = null;
@@ -120,9 +131,12 @@ $('btn-logout').addEventListener('click', () => {
 
 // ==================== NAVIGATION ====================
 
+// Вкладки з окремих скриптів реєструють тут enter/leave
+const tabHooks = {};
+
 function switchMainTab(tab) {
   state.currentTab = tab;
-  ['arena', 'pvp', 'shop', 'admin'].forEach((t) => {
+  ['arena', 'pvp', 'shop', 'group', 'clan', 'quests', 'ranking', 'chat', 'admin'].forEach((t) => {
     $(`nav-${t}`).classList.toggle('active', t === tab);
     $(`view-${t}`).classList.toggle('hidden', t !== tab);
   });
@@ -134,18 +148,139 @@ function switchMainTab(tab) {
     stopPvpPolling();
   }
 
+  Object.entries(tabHooks).forEach(([t, h]) => (t === tab ? h.enter() : h.leave && h.leave()));
+
   if (tab === 'shop') {
     loadShop();
   }
   if (tab === 'admin') {
     loadAdminData();
   }
+  if (tab === 'ranking') {
+    loadRanking();
+  }
+  if (tab === 'chat') {
+    chatUnread = 0;
+    $('nav-chat').textContent = 'Чат';
+    scrollChatToBottom();
+  }
 }
 
 $('nav-arena').addEventListener('click', () => switchMainTab('arena'));
 $('nav-pvp').addEventListener('click', () => switchMainTab('pvp'));
 $('nav-shop').addEventListener('click', () => switchMainTab('shop'));
+$('nav-group').addEventListener('click', () => switchMainTab('group'));
+$('nav-clan').addEventListener('click', () => switchMainTab('clan'));
+$('nav-quests').addEventListener('click', () => switchMainTab('quests'));
+$('nav-ranking').addEventListener('click', () => switchMainTab('ranking'));
+$('nav-chat').addEventListener('click', () => switchMainTab('chat'));
 $('nav-admin').addEventListener('click', () => switchMainTab('admin'));
+
+$('btn-edit-avatar').addEventListener('click', () => {
+  openAvatarEditor(state.user, {
+    saveUrl: '/api/game/avatar',
+    onSaved: (u) => {
+      state.user = u;
+      renderCharacter();
+    },
+  });
+});
+
+// ==================== RANKING ====================
+
+async function loadRanking() {
+  try {
+    const data = await api('/api/game/leaderboard');
+    $('ranking-me').textContent = data.me.rank
+      ? `Ваше місце: #${data.me.rank} • рейтинг ${data.me.rating}`
+      : `Рейтинг: ${data.me.rating}`;
+    $('ranking-tbody').innerHTML = data.leaderboard
+      .map(
+        (r) => `<tr class="${state.user && r.id === state.user.id ? 'me-row' : ''}">
+          <td>${r.rank}</td>
+          <td><strong>${r.clanTag ? `[${escapeHtml(r.clanTag)}] ` : ''}${escapeHtml(r.username)}</strong></td>
+          <td>${r.level}</td>
+          <td><strong>${r.rating}</strong></td>
+          <td>${r.wins} / ${r.losses}</td>
+        </tr>`,
+      )
+      .join('');
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+// ==================== CHAT (Socket.IO) ====================
+
+let chatSocket = null;
+let chatUnread = 0;
+
+function scrollChatToBottom() {
+  const box = $('chat-messages');
+  box.scrollTop = box.scrollHeight;
+}
+
+function appendChatMessage(m) {
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  const time = new Date(m.createdAt).toLocaleTimeString('uk-UA', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  el.innerHTML = `<span class="muted">${time}</span> <strong class="${m.role === 'admin' ? 'chat-admin' : ''}">${m.clanTag ? `[${escapeHtml(m.clanTag)}] ` : ''}${escapeHtml(
+    m.username,
+  )}</strong> <span class="muted">[${m.level}]</span>: <span class="chat-text"></span>`;
+  el.querySelector('.chat-text').textContent = m.text;
+  const box = $('chat-messages');
+  const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  box.appendChild(el);
+  while (box.children.length > 200) box.removeChild(box.firstChild);
+  if (stick) scrollChatToBottom();
+}
+
+function connectChat() {
+  if (chatSocket || !state.token || typeof io === 'undefined') return;
+  chatSocket = io({ auth: { token: state.token } });
+  chatSocket.on('connect', () => {
+    $('chat-status').textContent = 'Онлайн';
+  });
+  chatSocket.on('disconnect', () => {
+    $('chat-status').textContent = 'Відключено';
+  });
+  chatSocket.on('connect_error', () => {
+    $('chat-status').textContent = 'Помилка підключення';
+  });
+  chatSocket.on('chat:history', (list) => {
+    $('chat-messages').innerHTML = '';
+    list.forEach(appendChatMessage);
+    scrollChatToBottom();
+  });
+  chatSocket.on('chat:message', (m) => {
+    appendChatMessage(m);
+    if (state.currentTab !== 'chat') {
+      chatUnread += 1;
+      $('nav-chat').textContent = `Чат (${chatUnread})`;
+    }
+  });
+}
+
+function disconnectChat() {
+  if (chatSocket) {
+    chatSocket.disconnect();
+    chatSocket = null;
+  }
+}
+
+$('chat-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = $('chat-input');
+  const text = input.value.trim();
+  if (!text || !chatSocket) return;
+  chatSocket.emit('chat:send', text, (res) => {
+    if (res && res.error) showToast(res.error, true);
+    else input.value = '';
+  });
+});
 
 // ==================== CHARACTER & ARENA (PvE) ====================
 
@@ -155,13 +290,15 @@ function renderCharacter() {
 
   const eff = u.effectiveStats || { ...u.stats, damageMin: 0, damageMax: 0, armor: 0 };
 
-  $('header-user').textContent = `${u.username} • Рів. ${u.level} • ${u.gold} зол. (${u.role})`;
+  $('char-avatar').innerHTML = avatarSvg(u, 130);
+  $('header-user').textContent =
+    `${u.username} • Рів. ${u.level} • ${u.gold} зол. • рейтинг ${u.rating ?? 1000} (${u.role})`;
   $('nav-admin').classList.toggle('hidden', u.role !== 'admin');
 
   $('char-name').textContent = u.username;
   $('char-level').textContent = `Рівень ${u.level}`;
   $('char-hp-text').textContent = `${u.hp} / ${u.maxHp}`;
-  $('char-hp-bar').style.width = `${Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100))}%`;
+  setHpBar($('char-hp-bar'), u.hp, u.maxHp);
 
   const nextXp = u.nextLevelXp || u.level * 100;
   $('char-xp-text').textContent = `${u.xp} / ${nextXp}`;
@@ -232,7 +369,7 @@ $('btn-heal').addEventListener('click', async () => {
     const data = await api('/api/game/heal', { method: 'POST' });
     state.user = data.user;
     renderCharacter();
-    showToast('Здоров\'я повністю відновлено!');
+    showToast("Здоров'я повністю відновлено!");
   } catch (err) {
     showToast(err.message, true);
   }
@@ -304,11 +441,11 @@ function renderBattle() {
   $('battle-round').textContent = battle.round;
   $('vs-player-name').textContent = `${state.user.username} [Рів. ${state.user.level}]`;
   $('vs-player-hp').textContent = `${battle.playerHp} / ${battle.playerMaxHp}`;
-  $('vs-player-bar').style.width = `${Math.max(0, (battle.playerHp / battle.playerMaxHp) * 100)}%`;
+  setHpBar($('vs-player-bar'), battle.playerHp, battle.playerMaxHp);
 
   $('vs-bot-name').textContent = `${battle.botName} [Рів. ${battle.botLevel}]`;
   $('vs-bot-hp').textContent = `${battle.botHp} / ${battle.botMaxHp}`;
-  $('vs-bot-bar').style.width = `${Math.max(0, (battle.botHp / battle.botMaxHp) * 100)}%`;
+  setHpBar($('vs-bot-bar'), battle.botHp, battle.botMaxHp);
 
   const isActive = battle.status === 'active';
   $('battle-controls').classList.toggle('hidden', !isActive);
@@ -318,7 +455,8 @@ function renderBattle() {
 
   if (!isActive) {
     if (battle.status === 'won') {
-      $('battle-finish-text').textContent = `Перемога! +${battle.reward?.xp || 0} XP та +${battle.reward?.gold || 0} золота.`;
+      $('battle-finish-text').textContent =
+        `Перемога! +${battle.reward?.xp || 0} XP та +${battle.reward?.gold || 0} золота.`;
     } else if (battle.status === 'lost') {
       $('battle-finish-text').textContent = 'Поразка! Відновіть HP та спробуйте знову.';
     } else {
@@ -393,10 +531,7 @@ $('btn-back-lobby').addEventListener('click', async () => {
 
 async function loadShop() {
   try {
-    const [meData, shopData] = await Promise.all([
-      api('/api/auth/me'),
-      api('/api/shop/items'),
-    ]);
+    const [meData, shopData] = await Promise.all([api('/api/auth/me'), api('/api/shop/items')]);
     state.user = meData.user;
     state.shopItems = shopData.items;
     renderCharacter();
@@ -406,15 +541,17 @@ async function loadShop() {
   }
 }
 
-$('shop-filters').querySelectorAll('[data-slot-filter]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    state.shopFilter = btn.dataset.slotFilter;
-    $('shop-filters')
-      .querySelectorAll('[data-slot-filter]')
-      .forEach((b) => b.classList.toggle('active', b === btn));
-    renderShopAndGear();
+$('shop-filters')
+  .querySelectorAll('[data-slot-filter]')
+  .forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.shopFilter = btn.dataset.slotFilter;
+      $('shop-filters')
+        .querySelectorAll('[data-slot-filter]')
+        .forEach((b) => b.classList.toggle('active', b === btn));
+      renderShopAndGear();
+    });
   });
-});
 
 function renderShopAndGear() {
   const u = state.user;
@@ -435,11 +572,7 @@ function renderShopAndGear() {
         <strong>${item ? escapeHtml(item.name) : 'Порожньо'}</strong>
         ${item ? `<div class="bonus-tag">${formatBonuses(item.bonuses)}</div>` : ''}
       </div>
-      ${
-        item
-          ? `<button class="btn btn-ghost btn-xs" data-unequip="${slot}">Зняти</button>`
-          : ''
-      }
+      ${item ? `<button class="btn btn-ghost btn-xs" data-unequip="${slot}">Зняти</button>` : ''}
     `;
     slotsEl.appendChild(row);
   });
@@ -522,7 +655,7 @@ function renderShopAndGear() {
   grid.innerHTML = '';
   const ownedIds = new Set(inv.map((i) => i?._id).filter(Boolean));
   const items = state.shopItems.filter(
-    (it) => state.shopFilter === 'all' || it.slot === state.shopFilter
+    (it) => state.shopFilter === 'all' || it.slot === state.shopFilter,
   );
 
   items.forEach((item) => {
@@ -604,11 +737,11 @@ function renderPvp() {
     $('pvp-round').textContent = b.round;
     $('pvp-c-name').textContent = `${b.challengerName} [Рів. ${b.challengerLevel}]`;
     $('pvp-c-hp').textContent = `${b.challengerHp} / ${b.challengerMaxHp}`;
-    $('pvp-c-bar').style.width = `${Math.max(0, (b.challengerHp / b.challengerMaxHp) * 100)}%`;
+    setHpBar($('pvp-c-bar'), b.challengerHp, b.challengerMaxHp);
 
     $('pvp-o-name').textContent = `${b.opponentName} [Рів. ${b.opponentLevel}]`;
     $('pvp-o-hp').textContent = `${b.opponentHp} / ${b.opponentMaxHp}`;
-    $('pvp-o-bar').style.width = `${Math.max(0, (b.opponentHp / b.opponentMaxHp) * 100)}%`;
+    setHpBar($('pvp-o-bar'), b.opponentHp, b.opponentMaxHp);
 
     const isActive = b.status === 'active';
     $('btn-pvp-flee').classList.toggle('hidden', !isActive);
@@ -654,7 +787,8 @@ function renderPvp() {
   const list = $('pvp-challenges-list');
   list.innerHTML = '';
   if (!state.pvpChallenges.length) {
-    list.innerHTML = '<div class="muted">Відкритих викликів поки немає. Киньте виклик першим або відкрийте гру в іншому вікні під другим гравцем!</div>';
+    list.innerHTML =
+      '<div class="muted">Відкритих викликів поки немає. Киньте виклик першим або відкрийте гру в іншому вікні під другим гравцем!</div>';
   } else {
     state.pvpChallenges.forEach((ch) => {
       const isMine = ch.challengerId === state.user.id;
@@ -774,7 +908,7 @@ $('btn-pvp-back').addEventListener('click', async () => {
 // ==================== ADMIN PANEL (CRUD + UPGRADES) ====================
 
 function switchAdminSubtab(sub) {
-  ['users', 'bots', 'items'].forEach((s) => {
+  ['users', 'bots', 'items', 'details'].forEach((s) => {
     $(`admin-tab-${s}`).classList.toggle('active', s === sub);
     $(`admin-${s}-section`).classList.toggle('hidden', s !== sub);
   });
@@ -783,6 +917,92 @@ function switchAdminSubtab(sub) {
 $('admin-tab-users').addEventListener('click', () => switchAdminSubtab('users'));
 $('admin-tab-bots').addEventListener('click', () => switchAdminSubtab('bots'));
 $('admin-tab-items').addEventListener('click', () => switchAdminSubtab('items'));
+
+$('admin-tab-details').addEventListener('click', () => {
+  switchAdminSubtab('details');
+  loadUserDetails();
+});
+$('btn-refresh-details').addEventListener('click', loadUserDetails);
+
+function fmtDate(d) {
+  return d ? new Date(d).toLocaleString('uk-UA') : '—';
+}
+
+async function loadUserDetails() {
+  try {
+    const data = await api('/api/admin/users-details');
+    const tbody = $('admin-details-tbody');
+    tbody.innerHTML = '';
+    data.users.forEach((u) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(u.username)}</strong><br/><span class="muted">${u.role} • рів. ${u.level}</span></td>
+        <td>${u.isBanned ? `<span class="badge badge-danger" title="${escapeHtml(u.banReason)}">заблоковано</span>` : '<span class="badge">активний</span>'}</td>
+        <td>${escapeHtml(u.registerIp || '—')}<div class="ua-cell muted">${escapeHtml(u.registerUserAgent || '—')}</div></td>
+        <td>${escapeHtml(u.lastIp || '—')}<div class="ua-cell muted">${escapeHtml(u.lastUserAgent || '—')}</div></td>
+        <td>${fmtDate(u.lastLoginAt)}<br/><span class="muted">активність: ${fmtDate(u.lastSeenAt)}</span></td>
+        <td>${u.loginCount}</td>
+        <td>
+          <button class="btn btn-ghost btn-xs" data-detail-id="${u.id}">Історія</button>
+          <button class="btn btn-danger btn-xs" data-ban-id="${u.id}" data-banned="${u.isBanned}">${u.isBanned ? 'Розблокувати' : 'Заблокувати'}</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    tbody
+      .querySelectorAll('[data-detail-id]')
+      .forEach((btn) => btn.addEventListener('click', () => showUserDetail(btn.dataset.detailId)));
+    tbody.querySelectorAll('[data-ban-id]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const banning = btn.dataset.banned !== 'true';
+        const reason = banning ? prompt("Причина блокування (необов'язково):") : '';
+        if (banning && reason === null) return;
+        try {
+          await api(`/api/admin/users/${btn.dataset.banId}/ban`, {
+            method: 'POST',
+            body: JSON.stringify({ banned: banning, reason }),
+          });
+          showToast(banning ? 'Користувача заблоковано' : 'Користувача розблоковано');
+          loadUserDetails();
+        } catch (err) {
+          showToast(err.message, true);
+        }
+      }),
+    );
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
+
+async function showUserDetail(id) {
+  try {
+    const d = await api(`/api/admin/users/${id}/details`);
+    const card = $('admin-user-detail-card');
+    const u = d.user;
+    card.classList.remove('hidden');
+    card.innerHTML = `
+      <h3>${escapeHtml(u.username)} — деталі</h3>
+      <div class="details-grid">
+        <div>ID: <code>${u.id}</code></div>
+        <div>Створено: ${fmtDate(u.createdAt)}</div>
+        <div>Перемог / Поразок: ${u.wins} / ${u.losses}</div>
+        <div>Бої PvE: ${d.pveBattles} • PvP: ${d.pvpBattles}</div>
+        <div>Золото: ${u.gold} • XP: ${u.xp}/${u.nextLevelXp}</div>
+        <div>Відомі IP: ${d.knownIps.map(escapeHtml).join(', ') || '—'}</div>
+      </div>
+      <div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Час</th><th>Подія</th><th>IP</th><th>User-Agent</th></tr></thead>
+        <tbody>${d.events
+          .map(
+            (e) =>
+              `<tr><td>${fmtDate(e.createdAt)}</td><td>${escapeHtml(e.type)}</td><td>${escapeHtml(e.ip)}</td><td class="ua-cell">${escapeHtml(e.userAgent)}</td></tr>`,
+          )
+          .join('')}</tbody>
+      </table></div>`;
+    card.scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    showToast(err.message, true);
+  }
+}
 
 $('btn-toggle-create-user').addEventListener('click', () => {
   $('create-user-form').classList.toggle('hidden');
@@ -837,6 +1057,7 @@ function renderAdminUsers() {
       <td>
         <div class="action-group">
           <button class="btn btn-ghost btn-xs" data-edit-user="${u.id}">Ред.</button>
+          <button class="btn btn-ghost btn-xs" data-avatar-user="${u.id}">Вигляд</button>
           <button class="btn btn-danger btn-xs" data-del-user="${u.id}">Видал.</button>
         </div>
       </td>
@@ -863,6 +1084,23 @@ function renderAdminUsers() {
       } catch (err) {
         showToast(err.message, true);
       }
+    });
+  });
+
+  tbody.querySelectorAll('[data-avatar-user]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = state.adminUsers.find((x) => x.id === btn.dataset.avatarUser);
+      if (!target) return;
+      openAvatarEditor(target, {
+        saveUrl: `/api/admin/users/${target.id}/avatar`,
+        onSaved: (u) => {
+          if (state.user && state.user.id === u.id) {
+            state.user = u;
+            renderCharacter();
+          }
+          loadAdminData();
+        },
+      });
     });
   });
 
@@ -1146,6 +1384,7 @@ async function enterApp() {
   $('auth-screen').classList.add('hidden');
   $('app-screen').classList.remove('hidden');
   renderCharacter();
+  connectChat();
   await loadGameState();
 }
 

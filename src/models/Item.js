@@ -10,7 +10,7 @@ const bonusSchema = new mongoose.Schema(
     damageMax: { type: Number, default: 0 },
     armor: { type: Number, default: 0 },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const itemSchema = new mongoose.Schema(
@@ -30,7 +30,7 @@ const itemSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model('Item', itemSchema);
