@@ -22,6 +22,8 @@ const groupRoutes = require('./routes/group');
 const clanRoutes = require('./routes/clans');
 const questRoutes = require('./routes/quests');
 const skillRoutes = require('./routes/skills');
+const quizRoutes = require('./routes/quiz');
+const adminQuizRoutes = require('./routes/adminQuiz');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -40,6 +42,8 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .map((s) => s.trim())
   .filter(Boolean);
 app.use(cors({ origin: allowedOrigins.length ? allowedOrigins : false }));
+// Імпорт запитань може бути великим файлом
+app.use('/api/admin/quiz/import', express.json({ limit: '6mb' }));
 app.use(express.json({ limit: '50kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -74,6 +78,8 @@ app.use('/api/group', groupRoutes);
 app.use('/api/clans', clanRoutes);
 app.use('/api/quests', questRoutes);
 app.use('/api/skills', skillRoutes);
+app.use('/api/quiz', quizRoutes);
+app.use('/api/admin/quiz', adminQuizRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Маршрут не знайдено' }));

@@ -30,6 +30,7 @@ describe('groupEngine', () => {
   test('resolveGroupRound: HP не зростає, ходи скидаються, ціль лише з ворогів', () => {
     const parts = [p('a1', 'A', 100), p('a2', 'A', 100), p('b1', 'B', 100)];
     parts[0].move = { attackZone: 'head', blockPair: 'head-chest', targetIdx: 1 };
+    parts[2].move = { attackZone: 'legs', blockPair: 'head-chest', targetIdx: 0 };
     const logs = resolveGroupRound(parts, 1);
     expect(logs.length).toBeGreaterThan(0);
     expect(parts[1].hp).toBe(100);

@@ -50,7 +50,9 @@ async function api(path, options = {}) {
   const res = await fetch(path, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || 'Помилка запиту');
+    const err = new Error(data.error || 'Помилка запиту');
+    err.status = res.status;
+    throw err;
   }
   if (Array.isArray(data.unlocked) && data.unlocked.length) {
     showToast(`🏆 Досягнення: ${data.unlocked.join(', ')}`);
@@ -136,12 +138,22 @@ const tabHooks = {};
 
 function switchMainTab(tab) {
   state.currentTab = tab;
-  ['arena', 'pvp', 'shop', 'group', 'skills', 'clan', 'quests', 'ranking', 'chat', 'admin'].forEach(
-    (t) => {
-      $(`nav-${t}`).classList.toggle('active', t === tab);
-      $(`view-${t}`).classList.toggle('hidden', t !== tab);
-    },
-  );
+  [
+    'arena',
+    'pvp',
+    'shop',
+    'group',
+    'quiz',
+    'skills',
+    'clan',
+    'quests',
+    'ranking',
+    'chat',
+    'admin',
+  ].forEach((t) => {
+    $(`nav-${t}`).classList.toggle('active', t === tab);
+    $(`view-${t}`).classList.toggle('hidden', t !== tab);
+  });
 
   if (tab === 'pvp') {
     loadPvpState();
@@ -172,6 +184,7 @@ $('nav-arena').addEventListener('click', () => switchMainTab('arena'));
 $('nav-pvp').addEventListener('click', () => switchMainTab('pvp'));
 $('nav-shop').addEventListener('click', () => switchMainTab('shop'));
 $('nav-group').addEventListener('click', () => switchMainTab('group'));
+$('nav-quiz').addEventListener('click', () => switchMainTab('quiz'));
 $('nav-skills').addEventListener('click', () => switchMainTab('skills'));
 $('nav-clan').addEventListener('click', () => switchMainTab('clan'));
 $('nav-quests').addEventListener('click', () => switchMainTab('quests'));
@@ -911,7 +924,7 @@ $('btn-pvp-back').addEventListener('click', async () => {
 // ==================== ADMIN PANEL (CRUD + UPGRADES) ====================
 
 function switchAdminSubtab(sub) {
-  ['users', 'bots', 'items', 'clans', 'details'].forEach((s) => {
+  ['users', 'bots', 'items', 'quiz', 'clans', 'details'].forEach((s) => {
     $(`admin-tab-${s}`).classList.toggle('active', s === sub);
     $(`admin-${s}-section`).classList.toggle('hidden', s !== sub);
   });
@@ -921,11 +934,17 @@ $('admin-tab-users').addEventListener('click', () => switchAdminSubtab('users'))
 $('admin-tab-bots').addEventListener('click', () => switchAdminSubtab('bots'));
 $('admin-tab-items').addEventListener('click', () => switchAdminSubtab('items'));
 
+$('admin-tab-quiz').addEventListener('click', () => {
+  switchAdminSubtab('quiz');
+  loadAdminQuiz();
+});
+$('btn-refresh-quiz').addEventListener('click', () => loadAdminQuiz());
+
 $('admin-tab-clans').addEventListener('click', () => {
   switchAdminSubtab('clans');
   loadAdminClans();
 });
-$('btn-refresh-clans').addEventListener('click', loadAdminClans);
+$('btn-refresh-clans').addEventListener('click', () => loadAdminClans());
 
 $('admin-tab-details').addEventListener('click', () => {
   switchAdminSubtab('details');
@@ -1402,10 +1421,18 @@ async function init() {
   try {
     const data = await api('/api/auth/me');
     state.user = data.user;
+  } catch (err) {
+    if (err.status === 401 || err.status === 403) {
+      localStorage.removeItem('combats_token');
+      state.token = '';
+    }
+    return;
+  }
+  try {
     await enterApp();
-  } catch {
-    localStorage.removeItem('combats_token');
-    state.token = '';
+  } catch (err) {
+    console.error(err);
+    showToast(err.message, true);
   }
 }
 
