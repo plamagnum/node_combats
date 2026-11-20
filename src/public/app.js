@@ -936,13 +936,13 @@ $('admin-tab-quiz').addEventListener('click', () => {
   switchAdminSubtab('quiz');
   loadAdminQuiz();
 });
-$('btn-refresh-quiz').addEventListener('click', loadAdminQuiz);
+$('btn-refresh-quiz').addEventListener('click', () => loadAdminQuiz());
 
 $('admin-tab-clans').addEventListener('click', () => {
   switchAdminSubtab('clans');
   loadAdminClans();
 });
-$('btn-refresh-clans').addEventListener('click', loadAdminClans);
+$('btn-refresh-clans').addEventListener('click', () => loadAdminClans());
 
 $('admin-tab-details').addEventListener('click', () => {
   switchAdminSubtab('details');
