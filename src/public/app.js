@@ -50,7 +50,9 @@ async function api(path, options = {}) {
   const res = await fetch(path, { ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || 'Помилка запиту');
+    const err = new Error(data.error || 'Помилка запиту');
+    err.status = res.status;
+    throw err;
   }
   if (Array.isArray(data.unlocked) && data.unlocked.length) {
     showToast(`🏆 Досягнення: ${data.unlocked.join(', ')}`);
@@ -1419,10 +1421,18 @@ async function init() {
   try {
     const data = await api('/api/auth/me');
     state.user = data.user;
+  } catch (err) {
+    if (err.status === 401 || err.status === 403) {
+      localStorage.removeItem('combats_token');
+      state.token = '';
+    }
+    return;
+  }
+  try {
     await enterApp();
-  } catch {
-    localStorage.removeItem('combats_token');
-    state.token = '';
+  } catch (err) {
+    console.error(err);
+    showToast(err.message, true);
   }
 }
 
