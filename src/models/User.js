@@ -90,6 +90,10 @@ const userSchema = new mongoose.Schema(
       ),
       default: () => ({}),
     },
+    quizDaily: {
+      date: { type: String, default: '' },
+      gold: { type: Number, default: 0 },
+    },
     quests: {
       type: new mongoose.Schema(
         {

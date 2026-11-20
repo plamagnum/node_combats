@@ -895,3 +895,17 @@ code {
   max-height: 220px;
   overflow-y: auto;
 }
+
+.quiz-answers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.quiz-answer {
+  padding: 8px 10px;
+  border: 1px solid var(--border, #333);
+  border-radius: 8px;
+  cursor: pointer;
+}
