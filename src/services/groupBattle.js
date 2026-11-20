@@ -4,10 +4,11 @@ const Clan = require('../models/Clan');
 const { isAlive, outcomeOf, resolveGroupRound, MAX_ROUNDS } = require('./groupEngine');
 const { getDungeon, buildNpcs } = require('./dungeons');
 const { teamEloDelta } = require('./rating');
+const { maxManaFor } = require('./skills');
 const { track } = require('./progress');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const emptyMove = () => ({ attackZone: null, blockPair: null, targetIdx: null });
+const emptyMove = () => ({ attackZone: null, blockPair: null, targetIdx: null, skill: null });
 
 function humanParticipant(user, team) {
   return {
@@ -23,6 +24,9 @@ function humanParticipant(user, team) {
     hp: user.hp,
     maxHp: user.maxHp,
     stats: user.getEffectiveStats(),
+    skills: user.skills || [],
+    mana: maxManaFor(user.getEffectiveStats()),
+    maxMana: maxManaFor(user.getEffectiveStats()),
     move: emptyMove(),
   };
 }

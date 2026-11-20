@@ -23,6 +23,7 @@ async function loadGroup() {
     if (!group.dungeons.length) {
       group.dungeons = (await api('/api/group/dungeons')).dungeons;
     }
+    if (!group.skillCatalog) group.skillCatalog = (await api('/api/skills')).skills;
     const prev = group.data?.battle?.status;
     group.data = await api('/api/group/state');
     const cur = group.data.battle;
@@ -51,14 +52,18 @@ function groupSend(path, body) {
     });
 }
 
-function memberCard(p, battle, selectable) {
+function skillMap(ids) {
+  return (group.skillCatalog || []).filter((s) => ids.includes(s.id));
+}
+
+function memberCard(p, battle, selectable, side) {
   const dead = p.hp <= 0 || p.fled;
   const avatar = p.isNpc
     ? `<div class="npc-emoji">${escapeHtml(p.emoji || '👾')}</div>`
     : avatarSvg({ gender: p.gender, avatar: p.avatar }, 64);
   const pick =
     selectable && !dead
-      ? `<label class="muted"><input type="radio" name="groupTarget" value="${p.idx}" /> ціль</label>`
+      ? `<label class="muted ${side === 'ally' ? 'target-ally' : 'target-enemy'}"><input type="radio" name="groupTarget" value="${p.idx}" data-side="${side === 'ally' ? 'ally' : 'enemy'}" /> ціль</label>`
       : '';
   const mark = p.fled
     ? ' 🏃'
@@ -73,7 +78,7 @@ function memberCard(p, battle, selectable) {
       <strong>${p.boss ? '👑 ' : ''}${p.clanTag ? `[${escapeHtml(p.clanTag)}] ` : ''}${escapeHtml(p.name)}</strong>
       <span class="muted">Рів. ${p.level}${mark}</span>
       <div class="progress-track"><div class="progress-fill" data-bar="${p.idx}"></div></div>
-      <span class="muted">${p.hp} / ${p.maxHp}</span>
+      <span class="muted">${p.hp} / ${p.maxHp}${p.maxMana ? ` • 🔷${p.mana}` : ''}${p.armorBuff ? ' 🛡️' : ''}</span>
       ${pick}
     </div>
   </div>`;
@@ -133,11 +138,23 @@ function renderActive(b) {
         `<label><input type="radio" name="groupBlock" value="${v}" ${i === 0 ? 'checked' : ''} /> ${l}</label>`,
     )
     .join('');
+  const sk = skillMap(me?.skills || []);
+  const onCd = (id) => (me?.cooldowns || []).find((c) => c.id === id)?.left || 0;
+  const skillOpts = sk
+    .map((s) => {
+      const left = onCd(s.id);
+      const noMana = me.mana < s.mana;
+      const dis = left > 0 || noMana;
+      return `<label class="${dis ? 'muted' : ''}"><input type="radio" name="groupSkill" value="${s.id}" data-target="${s.target}" ${dis ? 'disabled' : ''} /> ${s.icon} ${escapeHtml(s.name)} (${s.mana} мани${left > 0 ? `, ⏳${left}` : ''})</label>`;
+    })
+    .join('');
   const controls = canAct
     ? me.ready
       ? '<p class="muted">Хід зроблено. Очікуємо інших учасників…</p>'
-      : `<div class="group-controls"><div><strong>Атака</strong> ${zones}</div><div><strong>Блок</strong> ${blocks}</div>
-         <p class="muted">Оберіть ціль серед ворогів (за замовчуванням — випадкова).</p>
+      : `<div class="group-controls"><div class="muted">Мана: ${me.mana} / ${me.maxMana}</div>
+         <div><strong>Дія</strong> <label><input type="radio" name="groupSkill" value="" checked /> Звичайна атака</label>${skillOpts}</div>
+         <div><strong>Атака</strong> ${zones}</div><div><strong>Блок</strong> ${blocks}</div>
+         <p class="muted">Ціль: вороги для атак, союзники для зцілення (за замовчуванням — випадкова / ви).</p>
          <button id="group-turn" class="btn btn-primary" type="button">Зробити хід</button></div>`
     : '<p class="muted">Ви вибули з бою. Спостерігайте за результатом.</p>';
   const title =
@@ -145,7 +162,7 @@ function renderActive(b) {
       ? `${escapeHtml(b.dungeonName)} — поверх ${b.floor}/${b.totalFloors}`
       : 'Груповий PvP';
   return `<div class="panel"><div class="panel-header"><h2>${title}</h2><span class="muted">Раунд ${b.round}</span></div>
-    <div class="group-teams"><div><h4>Ваша команда</h4>${mine.map((p) => memberCard(p, b, false)).join('')}</div>
+    <div class="group-teams"><div><h4>Ваша команда</h4>${mine.map((p) => memberCard(p, b, canAct && !me.ready, 'ally')).join('')}</div>
     <div><h4>Вороги</h4>${enemy.map((p) => memberCard(p, b, canAct && !me.ready)).join('')}</div></div>
     ${controls}
     <div class="group-actions">${canAct ? '<button id="group-flee" class="btn btn-danger btn-sm" type="button">Втекти</button>' : ''}</div>
@@ -215,7 +232,7 @@ function renderGroup() {
   else if (b.status === 'active') html = renderActive(b);
   else html = renderFinished(b);
   const keep = {};
-  ['groupAttack', 'groupBlock', 'groupTarget'].forEach((n) => {
+  ['groupAttack', 'groupBlock', 'groupTarget', 'groupSkill'].forEach((n) => {
     keep[n] = root.querySelector(`input[name="${n}"]:checked`)?.value;
   });
   root.innerHTML = html;
@@ -259,10 +276,14 @@ function bindGroup(root, b) {
     renderGroup();
   });
   on('group-turn', () => {
-    const target = root.querySelector('input[name="groupTarget"]:checked');
+    const skillEl = root.querySelector('input[name="groupSkill"]:checked');
+    const wantSide = skillEl?.dataset.target === 'ally' ? 'ally' : 'enemy';
+    let target = root.querySelector('input[name="groupTarget"]:checked');
+    if (target && target.dataset.side !== wantSide) target = null;
     groupSend(`/api/group/battles/${b.id}/turn`, {
       attackZone: root.querySelector('input[name="groupAttack"]:checked').value,
       blockPair: root.querySelector('input[name="groupBlock"]:checked').value,
+      skill: root.querySelector('input[name="groupSkill"]:checked')?.value || null,
       targetIdx: target ? Number(target.value) : null,
     });
   });

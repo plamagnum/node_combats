@@ -6,7 +6,8 @@ const { z, validate } = require('../utils/validate');
 const { ZONES, BLOCK_PAIRS } = require('../services/combatEngine');
 const { DUNGEONS, getDungeon, buildNpcs, publicDungeon } = require('../services/dungeons');
 const { advance, humanParticipant, npcParticipant } = require('../services/groupBattle');
-const { isAlive } = require('../services/groupEngine');
+const { isAlive, usableSkill } = require('../services/groupEngine');
+const { getSkill } = require('../services/skills');
 const { inGroupBattle } = require('../services/activity');
 const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
@@ -29,6 +30,7 @@ const turnSchema = z.object({
   attackZone: z.enum(ZONES),
   blockPair: z.enum(Object.keys(BLOCK_PAIRS)),
   targetIdx: z.number().int().min(0).max(20).nullable().optional(),
+  skill: z.string().max(30).nullable().optional(),
 });
 
 function view(b, userId) {
@@ -64,6 +66,11 @@ function view(b, userId) {
       rating: p.rating,
       hp: p.hp,
       maxHp: p.maxHp,
+      mana: p.mana,
+      maxMana: p.maxMana,
+      skills: !p.isNpc && String(p.userId) === uid ? p.skills : undefined,
+      cooldowns: !p.isNpc && String(p.userId) === uid ? p.cooldowns : undefined,
+      armorBuff: (p.buffs || []).length > 0,
       fled: p.fled,
       ready: Boolean(p.move && p.move.attackZone),
       earnXp: p.earnXp,
@@ -300,7 +307,7 @@ router.get('/battles/:id', async (req, res) => {
 
 router.post('/battles/:id/turn', validate(turnSchema), async (req, res) => {
   try {
-    const { attackZone, blockPair, targetIdx = null } = req.body;
+    const { attackZone, blockPair, targetIdx = null, skill = null } = req.body;
     const b = await GroupBattle.findOne({ _id: req.params.id, status: 'active' });
     if (!b) return res.status(404).json({ error: 'Активний бій не знайдено' });
     const idx = b.participants.findIndex(
@@ -309,8 +316,17 @@ router.post('/battles/:id/turn', validate(turnSchema), async (req, res) => {
     if (idx < 0 || !isAlive(b.participants[idx])) {
       return res.status(403).json({ error: 'Ви не берете участі в цьому бою' });
     }
+    const me = b.participants[idx];
+    const sk = skill ? getSkill(skill) : null;
+    if (skill && !sk) return res.status(400).json({ error: 'Невідома навичка' });
+    if (sk && !usableSkill(me, skill)) {
+      return res
+        .status(400)
+        .json({ error: 'Навичка недоступна: не вивчена, мало мани або перезарядка' });
+    }
     const target = targetIdx === null ? null : b.participants[targetIdx];
-    if (target && (target.team === b.participants[idx].team || !isAlive(target))) {
+    const allyTarget = sk && sk.target === 'ally';
+    if (target && (!isAlive(target) || (target.team === me.team) !== Boolean(allyTarget))) {
       return res.status(400).json({ error: 'Некоректна ціль' });
     }
 
@@ -325,7 +341,7 @@ router.post('/battles/:id/turn', validate(turnSchema), async (req, res) => {
       },
       {
         $set: {
-          [`participants.${idx}.move`]: { attackZone, blockPair, targetIdx },
+          [`participants.${idx}.move`]: { attackZone, blockPair, targetIdx, skill },
           [`participants.${idx}.missed`]: 0,
         },
       },

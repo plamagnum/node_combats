@@ -21,6 +21,7 @@ const adminRoutes = require('./routes/admin');
 const groupRoutes = require('./routes/group');
 const clanRoutes = require('./routes/clans');
 const questRoutes = require('./routes/quests');
+const skillRoutes = require('./routes/skills');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -72,6 +73,7 @@ app.use('/api/pvp', pvpRoutes);
 app.use('/api/group', groupRoutes);
 app.use('/api/clans', clanRoutes);
 app.use('/api/quests', questRoutes);
+app.use('/api/skills', skillRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Маршрут не знайдено' }));

@@ -8,7 +8,7 @@ const Battle = require('../models/Battle');
 const PvpBattle = require('../models/PvpBattle');
 const LoginEvent = require('../models/LoginEvent');
 const { avatarUpdateSchema } = require('../services/avatar');
-const { validate } = require('../utils/validate');
+const { z, validate } = require('../utils/validate');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 const GroupBattle = require('../models/GroupBattle');
@@ -271,6 +271,144 @@ router.delete('/users/:id', async (req, res) => {
   } catch (err) {
     console.error('[ADMIN]', err);
     return res.status(500).json({ error: 'Помилка видалення персонажа' });
+  }
+});
+
+// ==================== КЛАНИ ====================
+
+const clanEditSchema = z
+  .object({
+    name: z.string().trim().min(3).max(20),
+    tag: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-zА-Яа-яІіЇїЄєҐґ0-9]{2,5}$/, 'Тег: 2–5 літер або цифр'),
+    description: z.string().trim().max(120),
+    treasury: z.number().int().min(0).max(100000000),
+    xp: z.number().int().min(0).max(100000000),
+  })
+  .partial()
+  .strict();
+
+router.get('/clans', async (req, res) => {
+  try {
+    const clans = await Clan.find().sort({ xp: -1 }).limit(200);
+    const leaders = await User.find({ _id: { $in: clans.map((c) => c.leaderId) } }).select(
+      'username',
+    );
+    const names = new Map(leaders.map((u) => [String(u._id), u.username]));
+    return res.json({
+      clans: clans.map((c) => ({
+        id: c._id,
+        name: c.name,
+        tag: c.tag,
+        description: c.description,
+        xp: c.xp,
+        level: c.level,
+        treasury: c.treasury,
+        memberCount: c.memberCount,
+        leaderId: c.leaderId,
+        leaderName: names.get(String(c.leaderId)) || '—',
+        createdAt: c.createdAt,
+      })),
+    });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося завантажити клани' });
+  }
+});
+
+router.get('/clans/:id', async (req, res) => {
+  try {
+    const clan = await Clan.findById(req.params.id);
+    if (!clan) return res.status(404).json({ error: 'Клан не знайдено' });
+    const members = await User.find({ clanId: clan._id }).select('username level rating clanRole');
+    return res.json({
+      members: members.map((m) => ({
+        id: m._id,
+        username: m.username,
+        level: m.level,
+        rating: m.rating,
+        role: m.clanRole,
+      })),
+    });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося завантажити склад клану' });
+  }
+});
+
+router.put('/clans/:id', validate(clanEditSchema), async (req, res) => {
+  try {
+    const clan = await Clan.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true },
+    );
+    if (!clan) return res.status(404).json({ error: 'Клан не знайдено' });
+    if (req.body.tag) await User.updateMany({ clanId: clan._id }, { $set: { clanTag: clan.tag } });
+    return res.json({ ok: true });
+  } catch (err) {
+    if (err.code === 11000) return res.status(400).json({ error: 'Назва або тег уже зайняті' });
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося оновити клан' });
+  }
+});
+
+router.post('/clans/:id/kick/:userId', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.userId)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор' });
+    }
+    const clan = await Clan.findById(req.params.id);
+    if (!clan) return res.status(404).json({ error: 'Клан не знайдено' });
+    if (String(clan.leaderId) === req.params.userId) {
+      return res
+        .status(400)
+        .json({ error: 'Спочатку призначте іншого лідера або розпустіть клан' });
+    }
+    const r = await User.updateOne(
+      { _id: req.params.userId, clanId: clan._id },
+      { $set: { clanId: null, clanTag: '', clanRole: 'member' } },
+    );
+    if (r.modifiedCount) await Clan.updateOne({ _id: clan._id }, { $inc: { memberCount: -1 } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося виключити гравця' });
+  }
+});
+
+router.post('/clans/:id/leader/:userId', async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.userId)) {
+      return res.status(400).json({ error: 'Некоректний ідентифікатор' });
+    }
+    const clan = await Clan.findById(req.params.id);
+    const target = clan && (await User.findOne({ _id: req.params.userId, clanId: clan._id }));
+    if (!clan || !target) return res.status(404).json({ error: 'Клан або учасника не знайдено' });
+    await User.updateOne({ _id: clan.leaderId }, { $set: { clanRole: 'member' } });
+    await User.updateOne({ _id: target._id }, { $set: { clanRole: 'leader' } });
+    await Clan.updateOne({ _id: clan._id }, { $set: { leaderId: target._id } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося призначити лідера' });
+  }
+});
+
+router.delete('/clans/:id', async (req, res) => {
+  try {
+    const clan = await Clan.findByIdAndDelete(req.params.id);
+    if (!clan) return res.status(404).json({ error: 'Клан не знайдено' });
+    await User.updateMany(
+      { clanId: clan._id },
+      { $set: { clanId: null, clanTag: '', clanRole: 'member' } },
+    );
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[ADMIN]', err);
+    return res.status(500).json({ error: 'Не вдалося розпустити клан' });
   }
 });
 

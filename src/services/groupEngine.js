@@ -1,3 +1,4 @@
+const { getSkill, magicPower, REGEN_PER_ROUND } = require('./skills');
 const { ZONES, BLOCK_PAIRS, resolveStrike } = require('./combatEngine');
 
 const BLOCK_KEYS = Object.keys(BLOCK_PAIRS);
@@ -36,6 +37,32 @@ function outcomeOf(parts, roundsPlayed, maxRounds = MAX_ROUNDS) {
   return null;
 }
 
+const armorBonus = (p) =>
+  (p.buffs || []).filter((b) => b.kind === 'armor').reduce((a, b) => a + b.amount, 0);
+const defStats = (p) => ({ ...p.stats, armor: (p.stats.armor || 0) + armorBonus(p) });
+
+// Навичка придатна, якщо вивчена, вистачає мани й вона не на перезарядці
+function usableSkill(p, id) {
+  const sk = id && getSkill(id);
+  if (!sk || !(p.skills || []).includes(id) || p.mana < sk.mana) return null;
+  if ((p.cooldowns || []).some((c) => c.id === id && c.left > 0)) return null;
+  return sk;
+}
+
+function spendSkill(p, sk) {
+  p.mana -= sk.mana;
+  p.cooldowns = [
+    ...(p.cooldowns || []).filter((c) => c.id !== sk.id),
+    { id: sk.id, left: sk.cooldown + 1 },
+  ];
+}
+
+function magicDamage(attacker, sk, rng) {
+  const base = magicPower(attacker.stats, attacker.level);
+  const mult = sk.id === 'lightning' ? 2.2 : 1.5;
+  return Math.max(1, Math.round(base * mult * (0.85 + rng() * 0.3)));
+}
+
 // Одночасний розрахунок раунду: усі удари рахуються за станом на початок раунду
 function resolveGroupRound(parts, round, rng = Math.random) {
   const logs = [];
@@ -45,38 +72,141 @@ function resolveGroupRound(parts, round, rng = Math.random) {
     if (!hasMove(parts[i])) fillRandomMove(parts[i], rng);
   });
 
+  // 1) Лікування та підсилення діють до ударів
+  const used = new Map();
+  aliveIdx.forEach((i) => {
+    const p = parts[i];
+    const sk = usableSkill(p, p.move.skill);
+    if (!sk) return;
+    used.set(i, sk);
+    if (sk.kind === 'heal') {
+      const allies = aliveIdx.filter((j) => parts[j].team === p.team);
+      const t = allies.includes(p.move.targetIdx) ? parts[p.move.targetIdx] : p;
+      const amount = Math.round(15 + (p.stats.intuition || 0) * 3 + p.level * 2);
+      const before = t.hp;
+      t.hp = Math.min(t.maxHp, t.hp + amount);
+      spendSkill(p, sk);
+      logs.push({
+        round,
+        type: 'system',
+        text: `${p.name} зцілює ${t.name} (${sk.name}) на +${t.hp - before} HP.`,
+      });
+    } else if (sk.kind === 'buff') {
+      spendSkill(p, sk);
+      p.buffs = [...(p.buffs || []), { kind: 'armor', amount: 5, left: 3 }];
+      logs.push({
+        round,
+        type: 'system',
+        text: `${p.name} застосовує «${sk.name}»: +5 броні на 3 раунди.`,
+      });
+    }
+  });
+
+  // 2) Атаки (звичайні й за навичками)
   const strikes = [];
   aliveIdx.forEach((i) => {
     const attacker = parts[i];
+    const sk = used.get(i);
+    if (sk && (sk.kind === 'heal' || sk.kind === 'buff')) return;
     const enemies = aliveIdx.filter((j) => parts[j].team !== attacker.team);
     if (!enemies.length) return;
     const wanted = attacker.move.targetIdx;
-    const targetIdx = enemies.includes(wanted) ? wanted : pick(enemies, rng);
-    const target = parts[targetIdx];
-    const strike = resolveStrike(
-      attacker.name,
-      attacker.stats,
-      target.name,
-      target.stats,
-      attacker.move.attackZone,
-      BLOCK_PAIRS[target.move.blockPair] || [],
-    );
-    strikes.push({ targetIdx, strike });
+    const pickTarget = () => (enemies.includes(wanted) ? wanted : pick(enemies, rng));
+    const sk2 = sk || usableSkill(attacker, attacker.move.skill);
+    const attack = (targetIdx, mult = 1) => {
+      const target = parts[targetIdx];
+      const strike = resolveStrike(
+        attacker.name,
+        attacker.stats,
+        target.name,
+        defStats(target),
+        attacker.move.attackZone,
+        BLOCK_PAIRS[target.move.blockPair] || [],
+      );
+      strikes.push({
+        targetIdx,
+        damage: Math.round(strike.damage * mult),
+        type: strike.type,
+        text: strike.text,
+      });
+    };
+
+    if (!sk2) return attack(pickTarget());
+    spendSkill(attacker, sk2);
+    if (sk2.id === 'power_strike') {
+      const t = pickTarget();
+      const strike = resolveStrike(
+        attacker.name,
+        attacker.stats,
+        parts[t].name,
+        defStats(parts[t]),
+        attacker.move.attackZone,
+        BLOCK_PAIRS[parts[t].move.blockPair] || [],
+      );
+      const dmg = Math.round(strike.damage * 1.6);
+      strikes.push({
+        targetIdx: t,
+        damage: dmg,
+        type: strike.type,
+        text: `${attacker.name} → «${sk2.name}»: ${strike.text}${strike.damage ? ` (×1.6 = -${dmg})` : ''}`,
+      });
+    } else if (sk2.kind === 'aoe') {
+      enemies.forEach((t) => {
+        const r = resolveStrike(
+          attacker.name,
+          attacker.stats,
+          parts[t].name,
+          defStats(parts[t]),
+          attacker.move.attackZone,
+          [],
+        );
+        strikes.push({
+          targetIdx: t,
+          damage: Math.round(r.damage * 0.6),
+          type: r.type,
+          text: `«${sk2.name}»: ${r.text}`,
+        });
+      });
+    } else {
+      const t = pickTarget();
+      const dmg = magicDamage(attacker, sk2, rng);
+      strikes.push({
+        targetIdx: t,
+        damage: dmg,
+        type: 'crit',
+        text: `${attacker.name} кидає «${sk2.name}» у ${parts[t].name}: -${dmg} HP!`,
+      });
+    }
   });
 
-  strikes.forEach(({ targetIdx, strike }) => {
+  strikes.forEach(({ targetIdx, damage, type, text }) => {
     const target = parts[targetIdx];
-    target.hp = Math.max(0, target.hp - strike.damage);
-    logs.push({ round, type: strike.type, text: strike.text });
+    target.hp = Math.max(0, target.hp - damage);
+    logs.push({ round, type, text });
   });
 
   aliveIdx.forEach((i) => {
-    if (parts[i].hp <= 0)
-      logs.push({ round, type: 'system', text: `${parts[i].name} падає на землю!` });
-    parts[i].move = { attackZone: null, blockPair: null, targetIdx: null };
+    const p = parts[i];
+    if (p.hp <= 0) logs.push({ round, type: 'system', text: `${p.name} падає на землю!` });
+    p.move = { attackZone: null, blockPair: null, targetIdx: null, skill: null };
+    if (p.maxMana) p.mana = Math.min(p.maxMana, p.mana + REGEN_PER_ROUND);
+    p.cooldowns = (p.cooldowns || [])
+      .map((c) => ({ id: c.id, left: c.left - 1 }))
+      .filter((c) => c.left > 0);
+    p.buffs = (p.buffs || [])
+      .map((b) => ({ kind: b.kind, amount: b.amount, left: b.left - 1 }))
+      .filter((b) => b.left > 0);
   });
 
   return logs;
 }
 
-module.exports = { isAlive, hasMove, outcomeOf, resolveGroupRound, fillRandomMove, MAX_ROUNDS };
+module.exports = {
+  usableSkill,
+  isAlive,
+  hasMove,
+  outcomeOf,
+  resolveGroupRound,
+  fillRandomMove,
+  MAX_ROUNDS,
+};
